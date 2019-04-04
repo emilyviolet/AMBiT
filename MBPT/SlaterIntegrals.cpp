@@ -56,11 +56,16 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
     for(int ii = 0; ii < omp_get_max_threads(); ++ii){
         hartreeY_operators.emplace_back(hartreeY_operator->Clone());
     }
-    #pragma omp parallel if(!check_size_only)
-    {
-    #pragma omp single nowait
+    // Also make a temporary container to hold the integrals, which will be shared between threads,
+    // as well as one to hold the keys that each thread has already calculated, which will be private
+    //std::set<KeyType> thread_keys;
+    //std::vector<std::pair<KeyType, double> > temp_integrals(omp_get_max_threads); // TODO: THIS ISN'T DONE YET
+    // TODO: Change this to a range-based for-loop once GCC9.x is released
+    #pragma omp parallel for private(i1, i2, i3, i4, s1, s2, s3, s4, k)\
+                             schedule(dynamic, 8) \
+                             if(!check_size_only)
 #endif
-    while(it_1 != orbital_map_1->end())
+    for(auto it_1 = orbital_map_1->begin(); it_1 < orbital_map_1->end(); it_1++)
     {
         i1 = orbitals->state_index.at(it_1->first);
         s1 = it_1->second;
@@ -78,8 +83,6 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
 
             // Limits on k. This is the expensive part to calculate
 #ifdef AMBIT_USE_OPENMP
-            #pragma omp task firstprivate(i1, i3, s1, s3) private(k, i2, i4, s2, s4)
-            {
             k = hartreeY_operators[omp_get_thread_num()]->SetOrbitals(s3, s1);
 #else
             k = hartreeY_operator->SetOrbitals(s3, s1);
@@ -129,20 +132,13 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
                 }
 #ifdef AMBIT_USE_OPENMP
                 k = hartreeY_operators[omp_get_thread_num()]->NextK();
-            } // K loop
-            } // OpenMP task
 #else
                 k = hartreeY_operator->NextK();
-            } // K loop
 #endif
+            } // K loop
             it_3++;
         }
-        it_1++;
     }
-#ifdef AMBIT_USE_OPENMP
-    #pragma omp taskwait
-    } // OpenMP parallel region
-#endif
 
     if(check_size_only)
     {   hartreeY_operator->SetLightWeightMode(false);
