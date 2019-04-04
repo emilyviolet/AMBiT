@@ -56,13 +56,30 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
     for(int ii = 0; ii < omp_get_max_threads(); ++ii){
         hartreeY_operators.emplace_back(hartreeY_operator->Clone());
     }
+
     // Also make a temporary container to hold the integrals, which will be shared between threads,
     // as well as one to hold the keys that each thread has already calculated, which will be private
-    //std::set<KeyType> thread_keys;
-    //std::vector<std::pair<KeyType, double> > temp_integrals(omp_get_max_threads); // TODO: THIS ISN'T DONE YET
+    
+    // We need to know how many integrals there will be to allocate space
+    size_t num_integrals = CheckIntegralsSize(orbital_map_1, orbital_map_2, orbital_map_3, orbital_map_4);
+
+    std::set<KeyType> my_keys;
+    std::vector<std::vector<std::pair<KeyType, double> > > my_integrals(omp_get_max_threads());
+
+    for(int ii = 0; ii < omp_get_max_threads(); ii++)
+    {
+        // This uses a dumb heuristic to figure out how much space to reserve: if the integrals were 
+        // evenly distributed between N threads, then we should expect each thread to receive 
+        // num_integrals/Nthreads values to calculate. This may be greater or smaller depending on 
+        // load-balancing, but the vector will automatically resize if that is the case. Otherwise,
+        // This should avoid having to do too many memory allocations in the body of the loop.
+        my_integrals[ii].reserve(num_integrals/omp_get_max_threads());
+    }
+
     // TODO: Change this to a range-based for-loop once GCC9.x is released
-    #pragma omp parallel for private(i1, i2, i3, i4, s1, s2, s3, s4, k)\
-                             schedule(dynamic, 8) \
+    #pragma omp parallel for private(i1, i2, i3, i4, s1, s2, s3, s4, k, my_keys)\
+                             shared(my_integrals) \
+                             schedule(dynamic) \
                              if(!check_size_only)
 #endif
     for(auto it_1 = orbital_map_1->begin(); it_1 < orbital_map_1->end(); it_1++)
@@ -113,17 +130,22 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
                                 found_keys.insert(key);
                             }
                             else
-                            {   // Check that this integral doesn't already exist
+                            {   
+                                // Check that this integral doesn't already exist
+#ifdef AMBIT_USE_OPENMP
+                                if(my_keys.find(key) == my_keys.end())
+                                {
+                                    my_keys.insert(key);
+                                    double radial = hartreeY_operators[omp_get_thread_num()]->GetMatrixElement(*s4, *s2);
+                                    my_integrals[omp_get_thread_num()].push_back(std::make_pair(key, radial));
+                                }
+#else
                                 if(TwoElectronIntegrals.find(key) == TwoElectronIntegrals.end())
                                 {
-#ifdef AMBIT_USE_OPENMP
-                                    double radial = hartreeY_operators[omp_get_thread_num()]->GetMatrixElement(*s4, *s2);
-                                    #pragma omp critical(TWO_ELECTRON_SLATER)
-#else
                                     double radial = hartreeY_operator->GetMatrixElement(*s4, *s2);
-#endif
                                     TwoElectronIntegrals.insert(std::pair<KeyType, double>(key, radial));
                                 }
+#endif
                             }
                         }
                         it_4++;
@@ -145,9 +167,85 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
         return found_keys.size();
     }
     else
+#ifdef AMBI_USE_OPENMP
+    // Gather all the threads' local copies of the integrals into the global TwoElectronIntegrals
+    for(auto vec : my_integrals)
+    {
+        for(auto pair : vec)
+        {
+            TwoElectronIntegrals.insert(pair);
+        }
+    }
+#else
         return TwoElectronIntegrals.size();
+#endif
 }
 
+template <class MapType>
+unsigned int SlaterIntegrals<MapType>::CheckIntegralsSize(pOrbitalMapConst orbital_map_1, pOrbitalMapConst orbital_map_2, pOrbitalMapConst orbital_map_3, pOrbitalMapConst orbital_map_4)
+{
+    unsigned int i1, i2, i3, i4;
+    int k;
+    pOrbitalConst s1, s2, s3, s4;
+
+    std::set<KeyType> found_keys;
+    hartreeY_operator->SetLightWeightMode(true); // Don't calculate any matrix elements, only whether they exist
+
+    // Get Y^k_{31}
+    auto it_1 = orbital_map_1->begin();
+    while(it_1 != orbital_map_1->end())
+    {
+        i1 = orbitals->state_index.at(it_1->first);
+        s1 = it_1->second;
+
+        auto it_3 = orbital_map_3->begin();
+        if(two_body_reverse_symmetry && orbital_map_1 == orbital_map_3)
+        {   it_3 = it_1;
+            i3 = i1;
+        }
+
+        while(it_3 != orbital_map_3->end())
+        {
+            i3 = orbitals->state_index.at(it_3->first);
+            s3 = it_3->second;
+            k = hartreeY_operator->SetOrbitals(s3, s1);
+
+            while(k != -1)
+            {
+                auto it_2 = orbital_map_2->begin();
+                while(it_2 != orbital_map_2->end())
+                {
+                    i2 = orbitals->state_index.at(it_2->first);
+                    s2 = it_2->second;
+
+                    auto it_4 = orbital_map_4->begin();
+                    while(it_4 != orbital_map_4->end())
+                    {
+                        i4 = orbitals->state_index.at(it_4->first);
+                        s4 = it_4->second;
+
+                        // Check max_pqn conditions and k conditions
+                        if(((s1->L() + s2->L() + s3->L() + s4->L())%2 == 0) &&
+                           (2 * k >= abs(s2->TwoJ() - s4->TwoJ())) &&
+                           (2 * k <= s2->TwoJ() + s4->TwoJ()))
+                        {
+                            KeyType key = GetKey(k, i1, i2, i3, i4);
+                            found_keys.insert(key);
+                        }
+                        it_4++;
+                    }
+                    it_2++;
+                }
+                k = hartreeY_operator->NextK();
+            } // K loop
+            it_3++;
+        }
+        it_1++;
+    }
+
+    hartreeY_operator->SetLightWeightMode(false);
+    return found_keys.size();
+}
 template <class MapType>
 auto SlaterIntegrals<MapType>::GetKey(unsigned int k, unsigned int i1, unsigned int i2, unsigned int i3, unsigned int i4) const -> KeyType
 {
