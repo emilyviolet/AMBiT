@@ -45,11 +45,14 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
     pOrbitalConst s1, s2, s3, s4;
 
     std::set<KeyType> found_keys;   // For check_size_only
-    if(check_size_only)
-        hartreeY_operator->SetLightWeightMode(true);
+    hartreeY_operator->SetLightWeightMode(true);
 
     // Get Y^k_{31}
     auto it_1 = orbital_map_1->begin();
+
+    // First, get the number of integrals we need to store. This can be done in parallel, although 
+    // there will be some overhead, since we need to keep found_keys sync'd between threads.
+
 #ifdef AMBIT_USE_OPENMP
     // The HartreeY operator is not thread-safe, so make a separate clone for each thread
     std::vector<pHartreeY> hartreeY_operators;
@@ -57,28 +60,10 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
         hartreeY_operators.emplace_back(hartreeY_operator->Clone());
     }
 
-    // Also make a temporary container to hold the integrals, which will be shared between threads,
-    // as well as one to hold the keys that each thread has already calculated, which will be private
-    
-    // We need to know how many integrals there will be to allocate space
-    size_t num_integrals = CheckIntegralsSize(orbital_map_1, orbital_map_2, orbital_map_3, orbital_map_4);
-
-    std::set<KeyType> my_keys;
-    std::vector<std::vector<std::pair<KeyType, double> > > my_integrals(omp_get_max_threads());
-
-    for(int ii = 0; ii < omp_get_max_threads(); ii++)
-    {
-        // This uses a dumb heuristic to figure out how much space to reserve: if the integrals were 
-        // evenly distributed between N threads, then we should expect each thread to receive 
-        // num_integrals/Nthreads values to calculate. This may be greater or smaller depending on 
-        // load-balancing, but the vector will automatically resize if that is the case. Otherwise,
-        // This should avoid having to do too many memory allocations in the body of the loop.
-        my_integrals[ii].reserve(num_integrals/omp_get_max_threads());
-    }
-
     // TODO: Change this to a range-based for-loop once GCC9.x is released
-    #pragma omp parallel for private(i1, i2, i3, i4, s1, s2, s3, s4, k, my_keys)\
-                             shared(my_integrals) \
+    // Extra TODO: Do we actually gain any benefit from parallelism here? Probably not
+    #pragma omp parallel for private(i1, i2, i3, i4, s1, s2, s3, s4, k)\
+                             shared(hartreeY_operators, found_keys) \
                              schedule(dynamic) \
                              if(!check_size_only)
 #endif
@@ -125,28 +110,10 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
                         {
                             KeyType key = GetKey(k, i1, i2, i3, i4);
 
-                            if(check_size_only)
-                            {
-                                found_keys.insert(key);
-                            }
-                            else
-                            {   
-                                // Check that this integral doesn't already exist
 #ifdef AMBIT_USE_OPENMP
-                                if(my_keys.find(key) == my_keys.end())
-                                {
-                                    my_keys.insert(key);
-                                    double radial = hartreeY_operators[omp_get_thread_num()]->GetMatrixElement(*s4, *s2);
-                                    my_integrals[omp_get_thread_num()].push_back(std::make_pair(key, radial));
-                                }
-#else
-                                if(TwoElectronIntegrals.find(key) == TwoElectronIntegrals.end())
-                                {
-                                    double radial = hartreeY_operator->GetMatrixElement(*s4, *s2);
-                                    TwoElectronIntegrals.insert(std::pair<KeyType, double>(key, radial));
-                                }
+                            #pragma omp critical(FOUND_KEYS)
 #endif
-                            }
+                            found_keys.insert(key);
                         }
                         it_4++;
                     }
@@ -161,13 +128,29 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
             it_3++;
         }
     }
+    hartreeY_operator->SetLightWeightMode(false);
 
+    // If we're running with check-sizes then we're finished, so return the number of keys
     if(check_size_only)
-    {   hartreeY_operator->SetLightWeightMode(false);
+    {   
         return found_keys.size();
     }
-    else
-#ifdef AMBI_USE_OPENMP
+    
+    // Now create a vector containing all the valid keys, and another to hold the corresponding integrals
+    std::vector<KeyType> keys(found_keys.size());
+    std::vector<double> values(found_keys.size());
+
+    for(auto key : found_keys)
+    {
+        keys.push_back(key);
+    }
+
+    // TODO: Loop over keys goes here!
+
+    return(keys.size());
+
+/*
+#ifdef AMBIT_USE_OPENMP
     // Gather all the threads' local copies of the integrals into the global TwoElectronIntegrals
     for(auto vec : my_integrals)
     {
@@ -179,6 +162,7 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
 #else
         return TwoElectronIntegrals.size();
 #endif
+*/
 }
 
 template <class MapType>
