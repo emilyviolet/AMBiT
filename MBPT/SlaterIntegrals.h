@@ -37,8 +37,6 @@ public:
      */
     virtual unsigned int CalculateTwoElectronIntegrals(pOrbitalMapConst orbital_map_1, pOrbitalMapConst orbital_map_2, pOrbitalMapConst orbital_map_3, pOrbitalMapConst orbital_map_4, bool check_size_only = false) = 0;
 
-    virtual unsigned int CheckIntegralsSize(pOrbitalMapConst orbital_map_1, pOrbitalMapConst orbital_map_2, pOrbitalMapConst orbital_map_3, pOrbitalMapConst orbital_map_4) = 0;
-
     /** Clear all integrals. */
     virtual void clear() = 0;
 
@@ -115,11 +113,6 @@ public:
         If check_size_only is true, the integrals are not calculated, but the storage size is returned.
      */
     virtual unsigned int CalculateTwoElectronIntegrals(pOrbitalMapConst orbital_map_1, pOrbitalMapConst orbital_map_2, pOrbitalMapConst orbital_map_3, pOrbitalMapConst orbital_map_4, bool check_size_only = false) override;
-
-    /** Calculate the number of two-electron Slater integrals. This function only gets called from within 
-     * CalculateTwoElectronIntegrals to determine the amount of space to allocate for the integrals.
-     */
-    virtual unsigned int CheckIntegralsSize(pOrbitalMapConst orbital_map_1, pOrbitalMapConst orbital_map_2, pOrbitalMapConst orbital_map_3, pOrbitalMapConst orbital_map_4) override;
 
     /** Clear all integrals. */
     virtual void clear() override { TwoElectronIntegrals.clear(); }

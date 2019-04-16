@@ -59,15 +59,8 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
     for(int ii = 0; ii < omp_get_max_threads(); ++ii){
         hartreeY_operators.emplace_back(hartreeY_operator->Clone());
     }
-
-    // TODO: Change this to a range-based for-loop once GCC9.x is released
-    // Extra TODO: Do we actually gain any benefit from parallelism here? Probably not
-    #pragma omp parallel for private(i1, i2, i3, i4, s1, s2, s3, s4, k)\
-                             shared(hartreeY_operators, found_keys) \
-                             schedule(dynamic) \
-                             if(!check_size_only)
 #endif
-    for(auto it_1 = orbital_map_1->begin(); it_1 < orbital_map_1->end(); it_1++)
+    while(it_1 != orbital_map_1->end())
     {
         i1 = orbitals->state_index.at(it_1->first);
         s1 = it_1->second;
@@ -109,10 +102,6 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
                            (2 * k <= s2->TwoJ() + s4->TwoJ()))
                         {
                             KeyType key = GetKey(k, i1, i2, i3, i4);
-
-#ifdef AMBIT_USE_OPENMP
-                            #pragma omp critical(FOUND_KEYS)
-#endif
                             found_keys.insert(key);
                         }
                         it_4++;
@@ -127,6 +116,7 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
             } // K loop
             it_3++;
         }
+        it_1++;
     }
     hartreeY_operator->SetLightWeightMode(false);
 
@@ -137,99 +127,70 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
     }
     
     // Now create a vector containing all the valid keys, and another to hold the corresponding integrals
-    std::vector<KeyType> keys(found_keys.size());
-    std::vector<double> values(found_keys.size());
+    std::vector<KeyType> keys;
 
     for(auto key : found_keys)
     {
         keys.push_back(key);
     }
+    std::vector<double> values(keys.size());
 
     // TODO: Loop over keys goes here!
-
-    return(keys.size());
-
-/*
 #ifdef AMBIT_USE_OPENMP
-    // Gather all the threads' local copies of the integrals into the global TwoElectronIntegrals
-    for(auto vec : my_integrals)
-    {
-        for(auto pair : vec)
-        {
-            TwoElectronIntegrals.insert(pair);
-        }
-    }
-#else
-        return TwoElectronIntegrals.size();
+    #pragma omp parallel for private(k, i1, i2, i3, i4) shared(keys, values, hartreeY_operators, orbitals)
 #endif
-*/
-}
-
-template <class MapType>
-unsigned int SlaterIntegrals<MapType>::CheckIntegralsSize(pOrbitalMapConst orbital_map_1, pOrbitalMapConst orbital_map_2, pOrbitalMapConst orbital_map_3, pOrbitalMapConst orbital_map_4)
-{
-    unsigned int i1, i2, i3, i4;
-    int k;
-    pOrbitalConst s1, s2, s3, s4;
-
-    std::set<KeyType> found_keys;
-    hartreeY_operator->SetLightWeightMode(true); // Don't calculate any matrix elements, only whether they exist
-
-    // Get Y^k_{31}
-    auto it_1 = orbital_map_1->begin();
-    while(it_1 != orbital_map_1->end())
+    for(int ii = 0; ii < keys.size(); ii++)
     {
-        i1 = orbitals->state_index.at(it_1->first);
-        s1 = it_1->second;
+        auto key = keys[ii];
 
-        auto it_3 = orbital_map_3->begin();
-        if(two_body_reverse_symmetry && orbital_map_1 == orbital_map_3)
-        {   it_3 = it_1;
-            i3 = i1;
-        }
+        // Expand the current key into a set of k and orbital indices i1 to i4
+        auto expanded_key = ReverseKey(orbitals->size(), key);
+        k = std::get<0>(expanded_key);
+        i1 = std::get<1>(expanded_key);
+        i2 = std::get<2>(expanded_key);
+        i3 = std::get<3>(expanded_key);
+        i4 = std::get<4>(expanded_key);
 
-        while(it_3 != orbital_map_3->end())
-        {
-            i3 = orbitals->state_index.at(it_3->first);
-            s3 = it_3->second;
-            k = hartreeY_operator->SetOrbitals(s3, s1);
+        // Now get pointers to the orbitals corresponding to our indices
+        // This is slightly convoluted, but the logic is this: 
+        // The reverse_state_index gives us an OrbitalInfo, which we pass to the various orbital_maps
+        // to get a key-value pair (since the underlying storage is a std::map), the second element
+        // of which is a pointer to an orbital (as required).
+        auto s1 = orbital_map_1->find(orbitals->reverse_state_index.at(i1))->second;
+        auto s2 = orbital_map_2->find(orbitals->reverse_state_index.at(i2))->second;
+        auto s3 = orbital_map_3->find(orbitals->reverse_state_index.at(i3))->second;
+        auto s4 = orbital_map_4->find(orbitals->reverse_state_index.at(i4))->second;
 
-            while(k != -1)
-            {
-                auto it_2 = orbital_map_2->begin();
-                while(it_2 != orbital_map_2->end())
-                {
-                    i2 = orbitals->state_index.at(it_2->first);
-                    s2 = it_2->second;
+        // Now actually calculate the matrix elements
+#ifdef AMBIT_USE_OPENMP
+        // TODO: somehow s3 and s1 are NULL by the time they reach the guts of hartreeY.
+        // This is probably some weird smart-pointer stuff not playing nicely with OpenMP.
+        // I'm guessing that there are cases where say, s3 and s1 are the same pOrbital across different threads,
+        // but because each thread has no idea the others are using it, whichever finishes first will think that
+        // we're done with that pointer and free it while the others are using it.
+        hartreeY_operators[omp_get_thread_num()]->SetOrbitals(s3, s1);
+        hartreeY_operators[omp_get_thread_num()]->SetK(k);
 
-                    auto it_4 = orbital_map_4->begin();
-                    while(it_4 != orbital_map_4->end())
-                    {
-                        i4 = orbitals->state_index.at(it_4->first);
-                        s4 = it_4->second;
+        // TODO: Weird segfault happens here
+        double radial = hartreeY_operators[omp_get_thread_num()]->GetMatrixElement(*s4, *s2);
+        values[ii] = radial;
+#else
+        hartreeY_operator->SetOrbitals(s3, s1);
+        hartreeY_operator->SetK(k);
+        double radial = hartreeY_operator->GetMatrixElement(s4, s2);
+        values[ii] = radial;
+#endif
 
-                        // Check max_pqn conditions and k conditions
-                        if(((s1->L() + s2->L() + s3->L() + s4->L())%2 == 0) &&
-                           (2 * k >= abs(s2->TwoJ() - s4->TwoJ())) &&
-                           (2 * k <= s2->TwoJ() + s4->TwoJ()))
-                        {
-                            KeyType key = GetKey(k, i1, i2, i3, i4);
-                            found_keys.insert(key);
-                        }
-                        it_4++;
-                    }
-                    it_2++;
-                }
-                k = hartreeY_operator->NextK();
-            } // K loop
-            it_3++;
-        }
-        it_1++;
     }
 
-    hartreeY_operator->SetLightWeightMode(false);
-    return found_keys.size();
+    // Gather all the threads' local copies of the integrals into the global TwoElectronIntegrals
+    for(int ii = 0; ii < keys.size(); ii++)
+    {
+        TwoElectronIntegrals.insert(std::make_pair(keys[ii], values[ii]));
+    }
+    return TwoElectronIntegrals.size();
 }
+
 template <class MapType>
 auto SlaterIntegrals<MapType>::GetKey(unsigned int k, unsigned int i1, unsigned int i2, unsigned int i3, unsigned int i4) const -> KeyType
 {
