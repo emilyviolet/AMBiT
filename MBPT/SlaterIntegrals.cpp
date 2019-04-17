@@ -44,9 +44,6 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
     int k;
     pOrbitalConst s1, s2, s3, s4;
 
-    std::set<KeyType> found_keys;   // For check_size_only
-    hartreeY_operator->SetLightWeightMode(true);
-
     // Get Y^k_{31}
     auto it_1 = orbital_map_1->begin();
 
@@ -60,6 +57,10 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
         hartreeY_operators.emplace_back(hartreeY_operator->Clone());
     }
 #endif
+
+    std::set<KeyType> found_keys;   // Keep track of valid keys
+    hartreeY_operator->SetLightWeightMode(true); // Makes check_sizes faster
+
     while(it_1 != orbital_map_1->end())
     {
         i1 = orbitals->state_index.at(it_1->first);
@@ -163,15 +164,9 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
 
         // Now actually calculate the matrix elements
 #ifdef AMBIT_USE_OPENMP
-        // TODO: somehow s3 and s1 are NULL by the time they reach the guts of hartreeY.
-        // This is probably some weird smart-pointer stuff not playing nicely with OpenMP.
-        // I'm guessing that there are cases where say, s3 and s1 are the same pOrbital across different threads,
-        // but because each thread has no idea the others are using it, whichever finishes first will think that
-        // we're done with that pointer and free it while the others are using it.
         hartreeY_operators[omp_get_thread_num()]->SetOrbitals(s3, s1);
         hartreeY_operators[omp_get_thread_num()]->SetK(k);
 
-        // TODO: Weird segfault happens here
         double radial = hartreeY_operators[omp_get_thread_num()]->GetMatrixElement(*s4, *s2);
         values[ii] = radial;
 #else
