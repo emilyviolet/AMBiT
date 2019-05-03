@@ -71,6 +71,8 @@ public:
      */
     virtual int SetOrbitals(pSpinorFunctionConst new_c, pSpinorFunctionConst new_d) { return -1; }
 
+    virtual int FastSetOrbitals(pSpinorFunctionConst new_c, pSpinorFunctionConst new_d) { return -1; }
+
     /** Call SetParameters(k, c, d) with previously set orbitals.
         Return false if resulting HartreeY function is zero (i.e. isZero() returns true).
      */
@@ -191,6 +193,16 @@ public:
         Return resulting k, or -1 if there is no such k.
      */
     virtual int SetOrbitals(pSpinorFunctionConst new_c, pSpinorFunctionConst new_d) override;
+
+    /* Sets orbital parameters c and d without calculating the new coulomb potential. This must be 
+     * immeidately followed by a call to SetK, as the HartreeY operator will have an invalid 
+     * potential following this function. This is used to speed up the calculation of Slater Integrals:
+     * First, we call SetOrbitals() using a list of pre-calculated valid orbital tuples, which sets the
+     * Coulomb potential using k = GetMinK(). We then call SetK() using the k-value from the same tuple,
+     * which may or may not be equal to GetMinK(), so the potential from SetOrbitals() is often overridden
+     * leading to redundant work and slow performance. This function works around that problem.
+     */
+    int FastSetOrbitals(pSpinorFunctionConst new_c, pSpinorFunctionConst new_d) override;
 
     /** Call SetParameters(k, c, d) with previously set orbitals.
         Return false if resulting HartreeY function is zero (i.e. isZero() returns true).

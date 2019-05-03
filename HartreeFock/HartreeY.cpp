@@ -45,6 +45,14 @@ int HartreeY::SetOrbitals(pSpinorFunctionConst new_c, pSpinorFunctionConst new_d
     return K;
 }
 
+int HartreeY::FastSetOrbitals(pSpinorFunctionConst new_c, pSpinorFunctionConst new_d)
+{
+    c = new_c;
+    d = new_d;
+
+    K = GetMinK();
+    return K;
+}
 int HartreeY::GetMinK() const
 {
     int Knew = abs(c->TwoJ() - d->TwoJ())/2;
