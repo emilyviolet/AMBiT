@@ -33,16 +33,16 @@ GTEST_LIBS_DIR    = $(SRCDIR)/gtest
 INCLUDE = $(SRCDIR) $(EIGEN_INCLUDE_DIR)
 
 ifeq ($(MACHINE), default)
-  CC  = gcc
-  CXX = g++ -std=c++11 -Wno-deprecated-register -Wno-unused-result
+  CC  = mpicc
+  CXX = mpiCC -std=c++11 -Wno-deprecated-register -Wno-unused-result
   F77 = gfortran
 
-  LINK      = g++
+  LINK      = mpiCC
   LINKFLAGS =
   LIBDIR    = /usr/local/lib
-  LIBS      = gsl boost_filesystem boost_system lapack blas
+  LIBS      = gsl boost_filesystem boost_system lapack blas gslcblas
 
-  INCLUDE  += /usr/local/include
+  INCLUDE  += /usr/local/include /usr/include/eigen3
 
   ifdef debug
     BUILD     = Debug
@@ -55,7 +55,7 @@ ifeq ($(MACHINE), default)
     F77FLAGS  = -O2
   endif
 
-  CCDEP   = gcc -std=c++11
+  CCDEP   = mpicc -std=c++11
   DEPFLAG = -MM
 endif
 
