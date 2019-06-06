@@ -89,8 +89,8 @@ protected:
     class MatrixChunk
     {
     public:
-        MatrixChunk(unsigned int config_index_start, unsigned int config_index_end, unsigned int row_start, unsigned int num_rows, unsigned int Nsmall):
-            start_row(row_start), num_rows(num_rows)
+        MatrixChunk(unsigned int config_index_start, unsigned int config_index_end, unsigned int row_start, unsigned int num_rows, unsigned int Nsmall, bool has_three_body):
+            start_row(row_start), num_rows(num_rows), has_three_body(has_three_body)
         {
             config_indices.first = config_index_start;
             config_indices.second = config_index_end;
@@ -105,6 +105,7 @@ protected:
         std::pair<unsigned int, unsigned int> config_indices;
         unsigned int start_row;
         unsigned int num_rows;
+        bool has_three_body;
         RowMajorMatrix chunk;
         RowMajorMatrix diagonal;
 

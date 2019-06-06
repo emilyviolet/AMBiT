@@ -75,11 +75,15 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
         // Get chunk num_rows and number of configs. Allocates resources for the chunks.
         unsigned int current_num_rows = 0;
         unsigned int current_num_configs = 0;
+        bool has_three_body = false;
         while(config_it != configs->end() && current_num_configs < configs_per_chunk)
         {
             current_num_rows += config_it->NumCSFs();
             current_num_configs++;
             config_it++;
+            // Check whether there's any three-body MBPT integrals to do. If so, mark this chunk as a big one
+            if (!has_three_body)
+                has_three_body = H_three_body && std::binary_search(leading_configs->first.begin(), leading_configs->first.end(), NonRelConfiguration(*config_it));
         }
 
         if(current_num_rows == 0)
@@ -87,7 +91,7 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
 
         // Make chunk
         if(chunk_index%NumProcessors == ProcessorRank)
-            chunks.emplace_back(config_index, config_index+current_num_configs, csf_start, current_num_rows, Nsmall);
+            chunks.emplace_back(config_index, config_index+current_num_configs, csf_start, current_num_rows, Nsmall, has_three_body);
 
         config_index += current_num_configs;
         csf_start += current_num_rows;
@@ -97,64 +101,122 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
     // Loop through my chunks
     RelativisticConfigList::const_iterator configsubsetend_it = configs->small_end();
     unsigned int configsubsetend = configs->small_size();
-
     unsigned int chunk_index;
 #ifdef AMBIT_USE_OPENMP
     #pragma omp parallel for default(shared) private(chunk_index, config_it) schedule(dynamic)
 #endif
     for(chunk_index = 0; chunk_index < chunks.size(); chunk_index++)
     {
-        auto& current_chunk = chunks[chunk_index];
-        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& M = current_chunk.chunk;
-        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& D = current_chunk.diagonal;
-
         // Loop through configs for this chunk
-        config_it = (*configs)[current_chunk.config_indices.first];
+        auto& current_chunk = chunks[chunk_index];
         for(unsigned int config_index = current_chunk.config_indices.first; config_index < current_chunk.config_indices.second; config_index++)
         {
-            bool leading_config_i = H_three_body && std::binary_search(leading_configs->first.begin(), leading_configs->first.end(), NonRelConfiguration(*config_it));
-
-            // Loop through the rest of the configs
-            auto config_jt = configs->begin();
-            RelativisticConfigList::const_iterator config_jend;
-            if(config_index < configsubsetend)
-            {   config_jend = config_it;
-                ++config_jend;
-            }
-            else
-                config_jend = configsubsetend_it;
-
-            while(config_jt != config_jend)
+            #pragma omp task if(current_chunk.has_three_body) \
+                             default(none) firstprivate(chunk_index, config_index) \
+                             shared(configs, configsubsetend, configsubsetend_it, H_three_body, leading_configs, outstream)
             {
-                bool leading_config_j = H_three_body && std::binary_search(leading_configs->first.begin(), leading_configs->first.end(), NonRelConfiguration(*config_jt));
+                /* Shadows the declaration in the main loop, to make sure OpenMP data ownership doesn't screw with things.
+                 * This is an ugly hack, but currently OpenMP doesn't seem to be able to handle C++ references, so if we
+                 * use the OpenMP data environment to bring in M, D, current_chunk then the matrix elements get discarded
+                 * after exiting the task and we end up with a broken Hamiltonian matrix.
+                 */
+                auto& current_chunk = chunks[chunk_index];
+                Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& M = current_chunk.chunk;
+                Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& D = current_chunk.diagonal;
 
-                int config_diff_num = config_it->GetConfigDifferencesCount(*config_jt);
-                bool do_three_body = (leading_config_i || leading_config_j) && (config_diff_num <= 3);
+                auto config_it = (*configs)[config_index];
+                bool leading_config_i = H_three_body && std::binary_search(leading_configs->first.begin(), leading_configs->first.end(), NonRelConfiguration(*config_it));
 
-                // Check that the number of differences is small enough
-                if(do_three_body || (config_diff_num <= 2))
+                // Loop through the rest of the configs
+                auto config_jt = configs->begin();
+                RelativisticConfigList::const_iterator config_jend;
+                if(config_index < configsubsetend)
+                {   config_jend = config_it;
+                    ++config_jend;
+                }
+                else
+                    config_jend = configsubsetend_it;
+
+                while(config_jt != config_jend)
                 {
+                    bool leading_config_j = H_three_body && std::binary_search(leading_configs->first.begin(), leading_configs->first.end(), NonRelConfiguration(*config_jt));
+
+                    int config_diff_num = config_it->GetConfigDifferencesCount(*config_jt);
+                    bool do_three_body = (leading_config_i || leading_config_j) && (config_diff_num <= 3);
+
+                    // Check that the number of differences is small enough
+                    if(do_three_body || (config_diff_num <= 2))
+                    {
+                        // Loop through projections
+                        auto proj_it = config_it.projection_begin();
+                        while(proj_it != config_it.projection_end())
+                        {
+                            RelativisticConfiguration::const_projection_iterator proj_jt;
+                            if(config_jt == config_it)
+                                proj_jt = proj_it;
+                            else
+                                proj_jt = config_jt.projection_begin();
+
+                            while(proj_jt != config_jt.projection_end())
+                            {
+                                double operatorH;
+                                if(do_three_body)
+                                {
+                                    operatorH = H_three_body->GetMatrixElement(*proj_it, *proj_jt);
+                                }
+                                else
+                                {
+                                    operatorH = H_two_body->GetMatrixElement(*proj_it, *proj_jt);
+                                }
+                                if(fabs(operatorH) > 1.e-15)
+                                {
+                                    for(auto coeff_i = proj_it.CSF_begin(); coeff_i != proj_it.CSF_end(); coeff_i++)
+                                    {
+                                        RelativisticConfigList::const_CSF_iterator start_j = proj_jt.CSF_begin();
+
+                                        if(proj_it == proj_jt)
+                                            start_j = coeff_i;
+
+                                        for(auto coeff_j = start_j; coeff_j != proj_jt.CSF_end(); coeff_j++)
+                                        {
+                                            // See notes for an explanation
+                                            int i = coeff_i.index();
+                                            int j = coeff_j.index();
+
+                                            if(i > j)
+                                                M(i - current_chunk.start_row, j) += operatorH * (*coeff_i) * (*coeff_j);
+                                            else if(i < j)
+                                                M(j - current_chunk.start_row, i) += operatorH * (*coeff_i) * (*coeff_j);
+                                            else if(proj_it == proj_jt)
+                                                M(i - current_chunk.start_row, j) += operatorH * (*coeff_i) * (*coeff_j);
+                                            else
+                                                M(i - current_chunk.start_row, j) += 2. * operatorH * (*coeff_i) * (*coeff_j);
+                                        }
+                                    }
+                                }
+                                proj_jt++;
+                            }
+                            proj_it++;
+                        }
+                    }
+                    config_jt++;
+                }
+
+                // Diagonal
+                if(config_index >= configs->small_size())
+                {
+                    int diag_offset = current_chunk.start_row + current_chunk.num_rows - current_chunk.diagonal.rows();
+
                     // Loop through projections
                     auto proj_it = config_it.projection_begin();
                     while(proj_it != config_it.projection_end())
                     {
-                        RelativisticConfiguration::const_projection_iterator proj_jt;
-                        if(config_jt == config_it)
-                            proj_jt = proj_it;
-                        else
-                            proj_jt = config_jt.projection_begin();
+                        RelativisticConfiguration::const_projection_iterator proj_jt = proj_it;
 
-                        while(proj_jt != config_jt.projection_end())
+                        while(proj_jt != config_it.projection_end())
                         {
-                            double operatorH;
-                            if(do_three_body)
-                            {
-                                operatorH = H_three_body->GetMatrixElement(*proj_it, *proj_jt);
-                            }
-                            else
-                            {
-                                operatorH = H_two_body->GetMatrixElement(*proj_it, *proj_jt);
-                            }
+                            double operatorH = H_two_body->GetMatrixElement(*proj_it, *proj_jt);
+
                             if(fabs(operatorH) > 1.e-15)
                             {
                                 for(auto coeff_i = proj_it.CSF_begin(); coeff_i != proj_it.CSF_end(); coeff_i++)
@@ -171,13 +233,13 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                                         int j = coeff_j.index();
 
                                         if(i > j)
-                                            M(i - current_chunk.start_row, j) += operatorH * (*coeff_i) * (*coeff_j);
+                                            D(i - diag_offset, j - diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
                                         else if(i < j)
-                                            M(j - current_chunk.start_row, i) += operatorH * (*coeff_i) * (*coeff_j);
+                                            D(j - diag_offset, i - diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
                                         else if(proj_it == proj_jt)
-                                            M(i - current_chunk.start_row, j) += operatorH * (*coeff_i) * (*coeff_j);
+                                            D(i - diag_offset, j - diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
                                         else
-                                            M(i - current_chunk.start_row, j) += 2. * operatorH * (*coeff_i) * (*coeff_j);
+                                            D(i - diag_offset, j - diag_offset) += 2. * operatorH * (*coeff_i) * (*coeff_j);
                                     }
                                 }
                             }
@@ -186,56 +248,7 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                         proj_it++;
                     }
                 }
-                config_jt++;
-            }
-
-            // Diagonal
-            if(config_index >= configs->small_size())
-            {
-                int diag_offset = current_chunk.start_row + current_chunk.num_rows - current_chunk.diagonal.rows();
-
-                // Loop through projections
-                auto proj_it = config_it.projection_begin();
-                while(proj_it != config_it.projection_end())
-                {
-                    RelativisticConfiguration::const_projection_iterator proj_jt = proj_it;
-
-                    while(proj_jt != config_it.projection_end())
-                    {
-                        double operatorH = H_two_body->GetMatrixElement(*proj_it, *proj_jt);
-
-                        if(fabs(operatorH) > 1.e-15)
-                        {
-                            for(auto coeff_i = proj_it.CSF_begin(); coeff_i != proj_it.CSF_end(); coeff_i++)
-                            {
-                                RelativisticConfigList::const_CSF_iterator start_j = proj_jt.CSF_begin();
-
-                                if(proj_it == proj_jt)
-                                    start_j = coeff_i;
-
-                                for(auto coeff_j = start_j; coeff_j != proj_jt.CSF_end(); coeff_j++)
-                                {
-                                    // See notes for an explanation
-                                    int i = coeff_i.index();
-                                    int j = coeff_j.index();
-
-                                    if(i > j)
-                                        D(i - diag_offset, j - diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
-                                    else if(i < j)
-                                        D(j - diag_offset, i - diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
-                                    else if(proj_it == proj_jt)
-                                        D(i - diag_offset, j - diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
-                                    else
-                                        D(i - diag_offset, j - diag_offset) += 2. * operatorH * (*coeff_i) * (*coeff_j);
-                                }
-                            }
-                        }
-                        proj_jt++;
-                    }
-                    proj_it++;
-                }
-            }
-            config_it++;
+            } // OpenMP task
         } // Configs in chunk
     } // Chunks
 
