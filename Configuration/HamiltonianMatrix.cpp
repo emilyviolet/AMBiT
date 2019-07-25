@@ -99,19 +99,18 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
     unsigned int configsubsetend = configs->small_size();
 
     unsigned int chunk_index;
-    /* 
+    /********************* UNTESTED CODE *****************/
+    std::vector<ProjIteratorMeta> proj_iterators;
+
 #ifdef AMBIT_USE_OPENMP
     #pragma omp parallel for default(shared) private(chunk_index, config_it) schedule(dynamic)
 #endif
-    */
     for(chunk_index = 0; chunk_index < chunks.size(); chunk_index++)
     {
         auto& current_chunk = chunks[chunk_index];
-        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& M = current_chunk.chunk;
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& D = current_chunk.diagonal;
 
-        // Vector holding pre-calculated pairs fo projections
-        std::vector<std::tuple<RelativisticConfiguration::const_projection_iterator, RelativisticConfiguration::const_projection_iterator, bool> > proj_iterators;
+        // Vector holding pre-calculated pairs of projections
 
         // Loop through configs for this chunk
         config_it = (*configs)[current_chunk.config_indices.first];
@@ -144,8 +143,6 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                     auto proj_it = config_it.projection_begin();
                     for(int ii = 0; ii < config_it.projection_size(); ii++)
                     {
-                        //proj_iterator_list[ii] = proj_it;
-                        
                         RelativisticConfiguration::const_projection_iterator proj_jt;
                         if(config_jt == config_it)
                             proj_jt = proj_it;
@@ -154,7 +151,8 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
 
                         while(proj_jt != config_jt.projection_end())
                         {
-                            proj_iterators.push_back(std::make_tuple(proj_it, proj_jt, do_three_body));
+                            #pragma omp critical
+                            proj_iterators.emplace_back(ProjIteratorMeta(proj_it, proj_jt, do_three_body, chunk_index));
                             proj_jt++;
                         }
                         proj_it++;
@@ -212,60 +210,63 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
             config_it++;
         } // Configs in chunk
 
+    } // Chunks
 #ifdef AMBIT_USE_OPENMP
-        #pragma omp parallel for default(none) shared(current_chunk, M, proj_iterators)
+    #pragma omp parallel for default(none) shared(proj_iterators)
 #endif
-        for(int ii = 0; ii < proj_iterators.size(); ii++)
+    for(int ii = 0; ii < proj_iterators.size(); ii++)
+    {
+        
+        auto proj_it = proj_iterators[ii].proj_it;
+        auto proj_jt = proj_iterators[ii].proj_jt;
+        bool do_three_body = proj_iterators[ii].do_three_body;
+
+        auto& current_chunk = chunks[proj_iterators[ii].chunk_index];
+        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& M = current_chunk.chunk;
+        
+        double operatorH;
+        if(do_three_body)
         {
-            
-            auto proj_it = std::get<0>(proj_iterators[ii]);
-            auto proj_jt = std::get<1>(proj_iterators[ii]);
-            bool do_three_body = std::get<2>(proj_iterators[ii]);
-            
-            double operatorH;
-            if(do_three_body)
+            operatorH = H_three_body->GetMatrixElement(*proj_it, *proj_jt);
+        }
+        else
+        {
+            operatorH = H_two_body->GetMatrixElement(*proj_it, *proj_jt);
+        }
+        if(fabs(operatorH) > 1.e-15)
+        {
+            for(auto coeff_i = proj_it.CSF_begin(); coeff_i != proj_it.CSF_end(); coeff_i++)
             {
-                operatorH = H_three_body->GetMatrixElement(*proj_it, *proj_jt);
-            }
-            else
-            {
-                operatorH = H_two_body->GetMatrixElement(*proj_it, *proj_jt);
-            }
-            if(fabs(operatorH) > 1.e-15)
-            {
-                for(auto coeff_i = proj_it.CSF_begin(); coeff_i != proj_it.CSF_end(); coeff_i++)
+                RelativisticConfigList::const_CSF_iterator start_j = proj_jt.CSF_begin();
+
+                if(proj_it == proj_jt)
+                    start_j = coeff_i;
+
+                for(auto coeff_j = start_j; coeff_j != proj_jt.CSF_end(); coeff_j++)
                 {
-                    RelativisticConfigList::const_CSF_iterator start_j = proj_jt.CSF_begin();
+                    // See notes for an explanation
+                    int i = coeff_i.index();
+                    int j = coeff_j.index();
 
-                    if(proj_it == proj_jt)
-                        start_j = coeff_i;
-
-                    for(auto coeff_j = start_j; coeff_j != proj_jt.CSF_end(); coeff_j++)
-                    {
-                        // See notes for an explanation
-                        int i = coeff_i.index();
-                        int j = coeff_j.index();
-
-                        if(i > j)
-                            // Need some kind of guard here, since multiple loop iterations map to the same M(i, j)
-                            // Possibly atomics, but that will be slow
-                            #pragma omp atomic update
-                            M(i - current_chunk.start_row, j) += (operatorH * (*coeff_i) * (*coeff_j));
-                        else if(i < j)
-                            #pragma omp atomic update
-                            M(j - current_chunk.start_row, i) += (operatorH * (*coeff_i) * (*coeff_j));
-                        else if(proj_it == proj_jt)
-                            #pragma omp atomic update
-                            M(i - current_chunk.start_row, j) += (operatorH * (*coeff_i) * (*coeff_j));
-                        else
-                            #pragma omp atomic update
-                            M(i - current_chunk.start_row, j) += (2. * operatorH * (*coeff_i) * (*coeff_j));
-                    }
+                    if(i > j)
+                        // Need some kind of guard here, since multiple loop iterations map to the same M(i, j)
+                        // Possibly atomics, but that will be slow
+                        #pragma omp atomic update
+                        M(i - current_chunk.start_row, j) += (operatorH * (*coeff_i) * (*coeff_j));
+                    else if(i < j)
+                        #pragma omp atomic update
+                        M(j - current_chunk.start_row, i) += (operatorH * (*coeff_i) * (*coeff_j));
+                    else if(proj_it == proj_jt)
+                        #pragma omp atomic update
+                        M(i - current_chunk.start_row, j) += (operatorH * (*coeff_i) * (*coeff_j));
+                    else
+                        #pragma omp atomic update
+                        M(i - current_chunk.start_row, j) += (2. * operatorH * (*coeff_i) * (*coeff_j));
                 }
             }
-        } // OpenMP parallel region
+        }
+    } // OpenMP parallel region
  
-    } // Chunks
 
     for(auto& matrix_section: chunks)
         matrix_section.Symmetrize();

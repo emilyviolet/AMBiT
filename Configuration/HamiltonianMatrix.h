@@ -127,6 +127,24 @@ protected:
         }
     };
 
+    /* Bag o' data class which holds metadata for the projection iterations. We include the pair of
+     * projections to use with the Hamiltonian operator, as well as whether to do three-body matrix
+     * elements and which chunk they belong to.
+     */
+    class ProjIteratorMeta    
+    {
+    public:
+        ProjIteratorMeta(RelativisticConfiguration::const_projection_iterator proj_it, RelativisticConfiguration::const_projection_iterator proj_jt, bool do_three_body, unsigned chunk_index):
+        proj_it(proj_it), proj_jt(proj_jt), do_three_body(do_three_body), chunk_index(chunk_index)
+        {}
+    
+        RelativisticConfiguration::const_projection_iterator proj_it;
+        RelativisticConfiguration::const_projection_iterator proj_jt;
+        bool do_three_body;
+        unsigned chunk_index;
+
+    };
+
     std::vector<MatrixChunk> chunks;
     unsigned int most_chunk_rows;
 };
