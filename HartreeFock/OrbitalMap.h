@@ -3,8 +3,9 @@
 
 #include "Orbital.h"
 #include "OrbitalInfo.h"
-#include <set>
 #include <map>
+#include <set>
+#include <boost/container/flat_map.hpp>
 
 namespace Ambit
 {
@@ -13,7 +14,7 @@ namespace Ambit
 class OrbitalMap
 {
 protected:
-    typedef std::map<OrbitalInfo, pOrbital> BaseMap;
+    typedef boost::container::flat_map<OrbitalInfo, pOrbital> BaseMap;
 
 public:
     OrbitalMap(pLattice lat): lattice(lat) {}
@@ -34,6 +35,7 @@ public:
     virtual bool empty() const { return m_orbitals.empty(); }
     virtual iterator end() { return m_orbitals.end(); }
     virtual const_iterator end() const { return m_orbitals.end(); }
+    // TODO: sparse_hash_map does not have a version of erase() which takes const iterators, so we'll need to remap this
     virtual iterator erase(const_iterator position) { return m_orbitals.erase(position); }
     virtual iterator find(const OrbitalInfo& key) { return m_orbitals.find(key); }
     virtual const_iterator find(const OrbitalInfo& key) const { return m_orbitals.find(key); }
