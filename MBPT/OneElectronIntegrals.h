@@ -5,6 +5,7 @@
 #include "Basis/OrbitalManager.h"
 #include "Configuration/ElectronInfo.h"
 #include "Universal/SpinorFunction.h"
+#include <unordered_map>
 
 namespace Ambit
 {
@@ -151,8 +152,8 @@ protected:
     pOrbitalManagerConst orbitals;
     unsigned int num_orbitals;
 
+    std::unordered_map<unsigned int, double> integrals;
     /** Integrals stores the reduced matrix elements or, if(IsHermitianZeroOperator), the normal matrix element. */
-    std::map<unsigned int, double> integrals;
 };
 
 typedef OneElectronIntegrals<true> HFIntegrals;
