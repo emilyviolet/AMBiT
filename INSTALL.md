@@ -14,7 +14,7 @@ and tools:
     Library.
 
 -   The [Boost](https://www.boost.org/) filesystem and system C++
-    libraries (boost\_filesystem and boost\_system).
+    libraries (boost\_filesystem, boost\_system and flat\_map).
 
 -   [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page) (v3) -
     C++ linear algebra package.

@@ -15,7 +15,8 @@ AMBiT is currently in active development: the ''dev'' branch is regularly update
 
 AMBiT uses the [SCons](http://scons.org/) build-system, which is based on Python 2.7.x, and requires the following external libraries:
 - [GSL](https://www.gnu.org/software/gsl/) - The GNU Scientific Library.
-- [Boost](https://www.boost.org/) filesystem and system C++ (boost_filesystem and boost_system)
+- [Boost](https://www.boost.org/) filesystem and system C++ (boost_filesystem, boost_system, and
+  flat_map)
 - [Eigen v3](http://eigen.tuxfamily.org/index.php?title=Main_Page) - C++ linear algebra package.
 - [LAPACK](http://www.netlib.org/lapack/) and [BLAS](http://www.netlib.org/blas/) - linear algebra subroutines. Can be substituted for internal libraries in the [Intel Math Kernel Library (MKL)](https://software.intel.com/en-us/mkl).
 - [Google Sparsehash](https://github.com/sparsehash/sparsehash)
