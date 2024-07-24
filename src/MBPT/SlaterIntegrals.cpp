@@ -47,14 +47,18 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
 
 #ifdef AMBIT_USE_OPENMP
     // The HartreeY operator is not thread-safe, so make a separate clone for each thread
+    // Also make give each thread a temporary local copy of its two-electron integral map to avoid
+    // having to use a global mutex in the innermost loop when calculating the integrals
+    int max_threads = omp_get_max_threads();
     std::vector<pHartreeY> hartreeY_operators;
-    for(int ii = 0; ii < omp_get_max_threads(); ++ii){
+    std::vector<MapType> thread_integrals(max_threads);
+    for(int ii = 0; ii < max_threads; ++ii){
         hartreeY_operators.emplace_back(hartreeY_operator->Clone());
     }
     #pragma omp parallel for schedule(dynamic, 4) if(!check_size_only) default(none) \
     private(k, i1, i2, i3, i4, s1, s2, s3, s4) \
     shared(hartreeY_operators, orbitals, orbital_map_1, orbital_map_2, \
-           orbital_map_3, orbital_map_4, TwoElectronIntegrals, found_keys, \
+           orbital_map_3, orbital_map_4, thread_integrals, found_keys, \
            check_size_only)
 #endif
     for(auto it_1 = orbital_map_1->begin(); it_1 < orbital_map_1->end(); it_1++)
@@ -75,7 +79,8 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
 
             // Limits on k. This is the expensive part to calculate
 #ifdef AMBIT_USE_OPENMP
-            k = hartreeY_operators[omp_get_thread_num()]->SetOrbitals(s3, s1);
+            int tid = omp_get_thread_num();
+            k = hartreeY_operators[tid]->SetOrbitals(s3, s1);
 #else
             k = hartreeY_operator->SetOrbitals(s3, s1);
 #endif
@@ -107,21 +112,21 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
                             else
                             {   // Check that this integral doesn't already exist
 #ifdef AMBIT_USE_OPENMP
-                                #pragma omp critical(TWO_ELECTRON_SLATER)
-                                {
-#endif
+                                // Thread-local copy if using OpenMP
+                                if(thread_integrals[tid].find(key) == thread_integrals[tid].end())
+#else
                                 if(TwoElectronIntegrals.find(key) == TwoElectronIntegrals.end())
+#endif
                                 {
 #ifdef AMBIT_USE_OPENMP
                                     double radial = hartreeY_operators[omp_get_thread_num()]->GetMatrixElement(*s4, *s2);
+                                    // Thread-local copy if using OpenMP
+                                    thread_integrals[tid].insert(std::pair<KeyType, double>(key, radial));
 #else
                                     double radial = hartreeY_operator->GetMatrixElement(*s4, *s2);
-#endif
                                     TwoElectronIntegrals.insert(std::pair<KeyType, double>(key, radial));
-                                }
-#ifdef AMBIT_USE_OPENMP
-                                } // Critical section
 #endif
+                                }
                             }
                         }
                         it_4++;
@@ -129,7 +134,7 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
                     it_2++;
                 }
 #ifdef AMBIT_USE_OPENMP
-                k = hartreeY_operators[omp_get_thread_num()]->NextK();
+                k = hartreeY_operators[tid]->NextK();
 #else
                 k = hartreeY_operator->NextK();
 #endif
@@ -139,11 +144,30 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
     }
 
     if(check_size_only)
-    {   hartreeY_operator->SetLightWeightMode(false);
+    {   
+        hartreeY_operator->SetLightWeightMode(false);
         return found_keys.size();
     }
     else
+    {
+#ifdef AMBIT_USE_OPENMP
+        // Merge all the thread's local integrals into a single hash map
+        for(int ii = 0; ii < max_threads; ii++)
+        {
+            for(auto pair : thread_integrals[ii])
+            {
+                KeyType key = std::get<0>(pair);
+                double radial = std::get<1>(pair);
+                // Check we haven't already hit this integral
+                if(TwoElectronIntegrals.find(key) == TwoElectronIntegrals.end())
+                {
+                    TwoElectronIntegrals.insert(std::pair<KeyType, double>(key, radial));
+                }
+            }
+        }
+#endif
         return TwoElectronIntegrals.size();
+    }
 }
 
 template <class MapType>
