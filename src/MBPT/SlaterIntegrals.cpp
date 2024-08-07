@@ -1,8 +1,11 @@
 #include "Include.h"
+#include <chrono>
 
 #ifdef AMBIT_USE_OPENMP
     #include <omp.h>
 #endif
+
+#include "Universal/Timer.h"
 
 // Below purposely not included: this file is for a template class and should be included in the header.
 // #include "SlaterIntegrals.h"
@@ -33,6 +36,7 @@ SlaterIntegrals<MapType>::SlaterIntegrals(pOrbitalManagerConst orbitals, pHartre
 template <class MapType>
 unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMapConst orbital_map_1, pOrbitalMapConst orbital_map_2, pOrbitalMapConst orbital_map_3, pOrbitalMapConst orbital_map_4, bool check_size_only)
 {
+    auto start_time = std::chrono::steady_clock::now();
     // NOTE: For each set of orbitals, we actually calculate
     //       R^k(12,34) = < 4 | Y^k_{31} | 2 >
     // on the assumption that i1 and i2 are smaller.
@@ -143,7 +147,13 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
         return found_keys.size();
     }
     else
+    {
+        auto end_time = std::chrono::steady_clock::now();
+        std::chrono::duration<float> elapsed = end_time - start_time;
+        Timer* instance = Timer::Instance();
+        instance->walltimes_map.at("SlaterIntegrals") = elapsed;
         return TwoElectronIntegrals.size();
+    }
 }
 
 template <class MapType>

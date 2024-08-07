@@ -1,3 +1,4 @@
+#include <chrono>
 #ifdef AMBIT_USE_MPI
 #include <mpi.h>
 #endif
@@ -14,6 +15,7 @@
 #include "ExternalField/KineticEnergy.h"
 #include "ExternalField/LorentzInvarianceT2.h"
 #include "ExternalField/NormalMassShiftDecorator.h"
+#include "Universal/Timer.h"
 
 // Headers to get stack-traces
 #ifdef UNIX
@@ -93,6 +95,8 @@ int main(int argc, char* argv[])
     #endif
 
     OutStreams::InitialiseStreams();
+    
+    auto start_walltime = std::chrono::steady_clock::now();
 
     // Write the number of threads to the log file. This is useful for debugging.
     #ifdef AMBIT_USE_OPENMP
@@ -185,6 +189,21 @@ int main(int argc, char* argv[])
     {   *errstream << ba.what() << std::endl;
         exit(1);
     }
+
+    // Print the timing information to the log file
+    auto end_walltime = std::chrono::steady_clock::now();
+    std::chrono::duration<float> elapsed_walltime = end_walltime - start_walltime;
+
+    Timer* timer = Timer::Instance();
+    *logstream << "-------------------------------------\nTiming data: " << std::endl;
+    for(auto pair : timer->walltimes_map)
+    {
+        std::string label = pair.first;
+        float walltime = pair.second.count();
+        *logstream << label << " : " << walltime << " s" << std::endl;
+    }
+    *logstream << "Total walltime : " << elapsed_walltime.count() << " s" << std::endl;
+    *logstream << "-------------------------------------" << std::endl;
 
     #ifdef AMBIT_USE_MPI
         MPI_Barrier(MPI_COMM_WORLD);
@@ -402,6 +421,9 @@ do { \
 
 void AmbitInterface::TransitionCalculations()
 {
+    //Timing stuff
+    auto start_time = std::chrono::steady_clock::now();
+
     Atom& atom = atoms[first_run_index];
 
     // EM types
@@ -451,6 +473,13 @@ void AmbitInterface::TransitionCalculations()
     RUN_AND_STORE_TRANSITION(NMS, NormalMassShiftCalculator);
 
     user_input.set_prefix("");
+    
+    // Timing stuff
+    auto end_time = std::chrono::steady_clock::now();
+    std::chrono::duration<float> elapsed = end_time - start_time;
+    Timer* timer = Timer::Instance();
+    timer->walltimes_map.at("Transitions") = elapsed;
+
 }
 
 #undef RUN_AND_STORE_TRANSITION

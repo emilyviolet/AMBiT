@@ -8,6 +8,7 @@ set(MODS_UNIVERSAL  Eigensolver.cpp
                     PhysicalConstant.cpp
                     ScalapackMatrix.cpp
                     SpinorFunction.cpp
+                    Timer.cpp
                     Davidson.f
                     CACHE INTERNAL "")
 
