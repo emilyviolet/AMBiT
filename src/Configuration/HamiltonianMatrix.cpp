@@ -95,7 +95,7 @@ HamiltonianMatrix::~HamiltonianMatrix()
 void HamiltonianMatrix::GenerateMatrix()
 {
     // Timing stuff
-    auto start_time = std::chrono::steady_clock::now();
+    auto start_time = Timer::get_timestamp();
     // Loop through my chunks
     RelativisticConfigList::const_iterator configsubsetend_it = configs->small_end();
     unsigned int configsubsetend = configs->small_size();
@@ -246,8 +246,8 @@ void HamiltonianMatrix::GenerateMatrix()
     for(auto& matrix_section: chunks)
         matrix_section.Symmetrize();
     // Timing stuff
-    auto end_time = std::chrono::steady_clock::now();
-    std::chrono::duration<float> elapsed = end_time - start_time;
+    auto end_time = Timer::get_timestamp();
+    Timer::duration elapsed = end_time - start_time;
     Timer* instance = Timer::Instance();
     // Note: need to use "+=" here, since we're potentially calling this function multiple times
     // over the course of a run
@@ -257,7 +257,7 @@ void HamiltonianMatrix::GenerateMatrix()
 LevelVector HamiltonianMatrix::SolveMatrix(pHamiltonianID hID, unsigned int num_solutions)
 {
     // Timing stuff
-    auto start_time = std::chrono::steady_clock::now();
+    auto start_time = Timer::get_timestamp();
 
     LevelVector levelvec(hID);
     levelvec.configs = configs;
@@ -327,8 +327,8 @@ LevelVector HamiltonianMatrix::SolveMatrix(pHamiltonianID hID, unsigned int num_
         }
     }
 
-    auto end_time = std::chrono::steady_clock::now();
-    std::chrono::duration<float> elapsed = end_time - start_time;
+    auto end_time = Timer::get_timestamp();
+    Timer::duration elapsed = end_time - start_time;
     Timer* timer = Timer::Instance();
     // Need to use "+=" here because we could be calling this function multiple times in a single
     // run
@@ -341,7 +341,7 @@ LevelVector HamiltonianMatrix::SolveMatrix(pHamiltonianID hID, unsigned int num_
 LevelVector HamiltonianMatrix::SolveMatrixScalapack(pHamiltonianID hID, unsigned int num_solutions, bool use_energy_limit, double energy_limit)
 {
     // Timing stuff
-    auto start_time = std::chrono::steady_clock::now();
+    auto start_time = Timer::get_timestamp();
 
     LevelVector levelvec;
     levelvec.hID = hID;
@@ -409,8 +409,8 @@ LevelVector HamiltonianMatrix::SolveMatrixScalapack(pHamiltonianID hID, unsigned
         delete[] V;
     }
 
-    auto end_time = std::chrono::steady_clock::now();
-    std::chrono::duration<float> elapsed = end_time - start_time;
+    auto end_time = Timer::get_timestamp();
+    Timer::duration elapsed = end_time - start_time;
     Timer* timer = Timer::Instance();
     // Need to use "+=" here because we could be calling this function multiple times in a single
     // run

@@ -11,10 +11,12 @@ namespace Ambit
 class Timer
 {
 public:
+    typedef std::chrono::duration<float> duration;
+    typedef std::chrono::time_point<std::chrono::steady_clock> timestamp;
     static Timer* Instance();
     /** Mapping from region labels to walltime measurements. Walltimes must be stored as std::chrono
      * durations with "float" representation to make sure we can measure sub-second intervals.*/
-    std::map<std::string, std::chrono::duration<float> > walltimes_map;
+    std::map<std::string, duration> walltimes_map;
 
 protected:
     /** Compile-time array of labels for the different regions we're timing */
@@ -26,6 +28,7 @@ protected:
 
 public:
     ~Timer();
+    static timestamp get_timestamp();
 };
 }
 

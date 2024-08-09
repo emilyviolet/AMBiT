@@ -21,7 +21,7 @@ Atom::~Atom(void)
 
 pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
 {
-    auto start_time = std::chrono::steady_clock::now();
+    auto start_time = Timer::get_timestamp();
     bool use_read = true;
     if(user_input.search(2, "--clean", "-c"))
         use_read = false;
@@ -80,10 +80,10 @@ pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
     MPI_Barrier(MPI_COMM_WORLD);
     ReadBasis();
 #endif
-    auto end_time = std::chrono::steady_clock::now();
-    std::chrono::duration<float> elapsed = end_time - start_time;
+    auto end_time = Timer::get_timestamp();
+    Timer::duration elapsed = end_time - start_time;
     Timer* timer = Timer::Instance();
-    timer->walltimes_map.at("HartreeFock") = elapsed;
+    timer->walltimes_map.at("HartreeFock") += elapsed;
 
     return open_core;
 }
@@ -156,7 +156,7 @@ bool Atom::ReadBasis()
 
 void Atom::GenerateBruecknerOrbitals(bool generate_sigmas)
 {
-    auto start_time = std::chrono::steady_clock::now();
+    auto start_time = Timer::get_timestamp();
     pBruecknerDecorator brueckner(new BruecknerDecorator(hf_open));
     bool use_fg = user_input.search("MBPT/Brueckner/--use-lower");
     bool use_gg = user_input.search("MBPT/Brueckner/--use-lower-lower");
@@ -218,9 +218,9 @@ void Atom::GenerateBruecknerOrbitals(bool generate_sigmas)
     orbitals_to_update->Print();
     *outstream << std::endl;
 
-    auto end_time = std::chrono::steady_clock::now();
-    std::chrono::duration<float> elapsed = end_time - start_time;
+    auto end_time = Timer::get_timestamp();
+    Timer::duration elapsed = end_time - start_time;
     Timer* timer = Timer::Instance();
-    timer->walltimes_map.at("Brueckner") = elapsed;
+    timer->walltimes_map.at("Brueckner") += elapsed;
 }
 }

@@ -159,15 +159,15 @@ void Atom::MakeMBPTIntegrals()
             mbpt_integrals_one->Read(identifier + ".one.int");
             // TODO EVK: move the timing code inside the integral calculation if we want to get the
             // distribution of walltimes across MPI ranks
-            auto start_time = std::chrono::steady_clock::now();
+            auto start_time = Timer::get_timestamp();
 
             unsigned int size = mbpt_integrals_one->CalculateOneElectronIntegrals(valence, valence);
             
             // Timing stuff
-            auto end_time = std::chrono::steady_clock::now();
-            std::chrono::duration<float> elapsed = end_time - start_time;
+            auto end_time = Timer::get_timestamp();
+            Timer::duration elapsed = end_time - start_time;
             Timer* timer = Timer::Instance();
-            timer->walltimes_map.at("OneBodyMBPT") = elapsed;
+            timer->walltimes_map.at("OneBodyMBPT") += elapsed;
             *logstream << "One-body MBPT integrals complete: size = " << size << std::endl;
         }
 
@@ -175,15 +175,15 @@ void Atom::MakeMBPTIntegrals()
         {
             mbpt_integrals_two->Read(identifier + ".two.int");
             // Timing stuff
-            auto start_time = std::chrono::steady_clock::now();
+            auto start_time = Timer::get_timestamp();
 
             unsigned int size = mbpt_integrals_two->CalculateTwoElectronIntegrals(valence_subset[0], valence_subset[1], valence_subset[2], valence_subset[3]);
 
             // Timing stuff
-            auto end_time = std::chrono::steady_clock::now();
-            std::chrono::duration<float> elapsed = end_time - start_time;
+            auto end_time = Timer::get_timestamp();
+            Timer::duration elapsed = end_time - start_time;
             Timer* timer = Timer::Instance();
-            timer->walltimes_map.at("TwoBodyMBPT") = elapsed;
+            timer->walltimes_map.at("TwoBodyMBPT") += elapsed;
             *logstream << "Two-body MBPT integrals complete: size = " << size << std::endl;
         }
     }

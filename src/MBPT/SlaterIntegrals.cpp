@@ -36,7 +36,7 @@ SlaterIntegrals<MapType>::SlaterIntegrals(pOrbitalManagerConst orbitals, pHartre
 template <class MapType>
 unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMapConst orbital_map_1, pOrbitalMapConst orbital_map_2, pOrbitalMapConst orbital_map_3, pOrbitalMapConst orbital_map_4, bool check_size_only)
 {
-    auto start_time = std::chrono::steady_clock::now();
+    auto start_time = Timer::get_timestamp();
     // NOTE: For each set of orbitals, we actually calculate
     //       R^k(12,34) = < 4 | Y^k_{31} | 2 >
     // on the assumption that i1 and i2 are smaller.
@@ -148,10 +148,10 @@ unsigned int SlaterIntegrals<MapType>::CalculateTwoElectronIntegrals(pOrbitalMap
     }
     else
     {
-        auto end_time = std::chrono::steady_clock::now();
-        std::chrono::duration<float> elapsed = end_time - start_time;
+        auto end_time = Timer::get_timestamp();
+        Timer::duration elapsed = end_time - start_time;
         Timer* instance = Timer::Instance();
-        instance->walltimes_map.at("SlaterIntegrals") = elapsed;
+        instance->walltimes_map.at("SlaterIntegrals") += elapsed;
         return TwoElectronIntegrals.size();
     }
 }

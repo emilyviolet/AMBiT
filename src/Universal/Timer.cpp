@@ -22,4 +22,10 @@ namespace Ambit
     Timer::~Timer()
     {}
 
+    /** Return the current time stamp from chrono's "steady_clock" */
+    Timer::timestamp Timer::get_timestamp()
+    {
+        return(std::chrono::steady_clock::now());
+    }
+
 }
