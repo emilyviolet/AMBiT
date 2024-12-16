@@ -2,6 +2,7 @@
 #define EXP_LATTICE_H
 
 #include "Lattice.h"
+#include "LatticeConfig.h"
 
 namespace Ambit
 {
@@ -14,6 +15,10 @@ class ExpLattice : public Lattice
         beta (from Lattice class) is not used here.
      */
 public:
+    ExpLattice(LatticeExpConfig config):
+        ExpLattice(config.num_points, config.start_point, config.H)
+    {}
+
     ExpLattice(const ExpLattice& other);
     ExpLattice(unsigned int numpoints, double r_min, double H);
     virtual ~ExpLattice() {}

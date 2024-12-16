@@ -291,7 +291,7 @@ TEST(CoreValenceIntegralsTester, HeCoulombPotential)
     relconfigs = config_generator.GenerateRelativisticConfigurations(configs, sym, angular_library);
     pTwoElectronCoulombOperator twobody_electron = std::make_shared<TwoElectronCoulombOperator>(integrals);
     HamiltonianMatrix H_CI(hf_electron, twobody_electron, relconfigs);
-    H_CI.GenerateMatrix(1); // We only have one config in the matrix
+    H_CI.GenerateMatrix();
 
     // Solve matrix
     LevelVector levels = H_CI.SolveMatrix(std::make_shared<HamiltonianID>(sym), 1);
@@ -311,7 +311,7 @@ TEST(CoreValenceIntegralsTester, HeCoulombPotential)
     relconfigs = config_generator.GenerateRelativisticConfigurations(configs, sym, angular_library);
     twobody_electron = std::make_shared<TwoElectronCoulombOperator>(integrals);
     HamiltonianMatrix H_MBPT(hf_electron, twobody_electron, relconfigs);
-    H_MBPT.GenerateMatrix(1);
+    H_MBPT.GenerateMatrix();
 
     // Solve matrix
     levels = H_MBPT.SolveMatrix(std::make_shared<HamiltonianID>(sym), 1);

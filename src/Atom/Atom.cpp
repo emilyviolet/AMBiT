@@ -6,13 +6,14 @@
 #include "Basis/BasisGenerator.h"
 #include "Basis/BSplineBasis.h"
 #include "Universal/ExpLattice.h"
+#include "Universal/LatticeConfig.h"
 #include "MBPT/BruecknerDecorator.h"
 #include "HartreeFock/ConfigurationParser.h"
 
 namespace Ambit
 {
-Atom::Atom(const MultirunOptions userInput, unsigned int atomic_number, const std::string& atom_identifier):
-    user_input(userInput), Z(atomic_number), identifier(atom_identifier)
+Atom::Atom(const MultirunOptions userInput, LatticeConfig lattice_config, unsigned int atomic_number, const std::string& atom_identifier):
+    user_input(userInput), lattice_config(std::move(lattice_config)), Z(atomic_number), identifier(atom_identifier)
 {}
 
 Atom::~Atom(void)
@@ -38,6 +39,13 @@ pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
         }
         else
         {   // Lattice parameters
+            if (auto hconf = std::get_if<LatticeHybridConfig>(&lattice_config))
+                lattice = pLattice(new Lattice(*hconf));
+            else
+            {   auto econf = std::get_if<LatticeExpConfig>(&lattice_config);
+                lattice = pLattice(new ExpLattice(*econf));
+            }
+#if 0
             if(user_input.search("Lattice/--exp-lattice"))
             {   int num_points = user_input("Lattice/NumPoints", 300);
                 double first_point = user_input("Lattice/StartPoint", 1.e-5);
@@ -50,6 +58,7 @@ pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
                 double lattice_size = user_input("Lattice/EndPoint", 50.);
                 lattice = pLattice(new Lattice(num_points, first_point, lattice_size));
             }
+#endif
         }
 
         // Relativistic Hartree-Fock

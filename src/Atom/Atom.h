@@ -5,6 +5,7 @@
 #include "Configuration/HamiltonianMatrix.h"
 #include "HartreeFock/Core.h"
 #include "Basis/BasisGenerator.h"
+#include "Universal/LatticeConfig.h"
 #include "Universal/MathConstant.h"
 #include "Universal/PhysicalConstant.h"
 #include "Configuration/LevelMap.h"
@@ -21,7 +22,7 @@ class Sigma3Calculator;
 class Atom
 {
 public:
-    Atom(const MultirunOptions userInput, unsigned int atomic_number, const std::string& atom_identifier);
+    Atom(const MultirunOptions userInput, LatticeConfig lattice_config, unsigned int atomic_number, const std::string& atom_identifier);
     ~Atom();
 
     /** Read existing basis or perform Hartree-Fock calculation
@@ -153,6 +154,7 @@ public:
 
 protected:
     MultirunOptions user_input;
+    LatticeConfig lattice_config;
 
     std::string identifier;
     double Z;         // Nuclear charge

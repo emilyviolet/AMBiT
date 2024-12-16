@@ -14,6 +14,7 @@
 #include "ExternalField/KineticEnergy.h"
 #include "ExternalField/LorentzInvarianceT2.h"
 #include "ExternalField/NormalMassShiftDecorator.h"
+#include "Specification/Specification.h"
 
 // Headers to get stack-traces
 #ifdef UNIX
@@ -101,6 +102,7 @@ int main(int argc, char* argv[])
 
     try
     {   MultirunOptions lineInput(argc, argv, ",");
+        GlobalSpecification specification;
 
         // Check for help message
         if(lineInput.size() == 1 || lineInput.search(2, "--help", "-h"))
@@ -159,6 +161,34 @@ int main(int argc, char* argv[])
         MultirunOptions fileInput(inputFileName.c_str(), "//", "\n", ",");
         fileInput.absorb(lineInput);
 
+        // Also read input into parapara-based parameter handling..
+        std::string perr = importSpecificationFile(specification, inputFileName);
+        if (!perr.empty()) {
+            *errstream << "importSpecificationFile:\n" << perr << std::endl;
+            exit(1);
+        }
+
+        // For parapara, grab relevant argv options too.
+        for (char **argp = &argv[1]; *argp; ++argp) {
+            std::string_view arg(*argp);
+
+            if(arg == "-f")
+            {   ++argp;
+                if (!*argp) break;
+                else continue;
+            }
+
+            std::size_t ext_length = extension.length();
+            if(arg.length() >= ext_length && arg.substr(arg.length() - ext_length) == extension)
+                continue;
+
+            perr = importSpecificationKV(specification, std::string(arg));
+            if (!perr.empty()) {
+                *errstream << "importSpecificationKV:\n" << perr << std::endl;
+                exit(1);
+            }
+        }
+
         // Identifier
         std::string identifier = fileInput("ID", "");
         if(identifier == "")
@@ -171,7 +201,7 @@ int main(int argc, char* argv[])
             }
         }
 
-        Ambit::AmbitInterface ambit(fileInput, identifier);
+        Ambit::AmbitInterface ambit(fileInput, std::move(specification), identifier);
         ambit.EnergyCalculations();
 
         if(!fileInput.search("--check-sizes"))
@@ -205,8 +235,8 @@ int main(int argc, char* argv[])
 
 namespace Ambit
 {
-AmbitInterface::AmbitInterface(MultirunOptions& user_input, const std::string& identifier):
-    user_input(user_input), identifier(identifier)
+AmbitInterface::AmbitInterface(MultirunOptions& user_input, GlobalSpecification specification, const std::string& identifier):
+    user_input(user_input), specification(std::move(specification)), identifier(identifier)
 {
     if(ProcessorRank == 0)
     {
@@ -228,6 +258,8 @@ void AmbitInterface::EnergyCalculations()
 
     bool check_sizes = user_input.search("--check-sizes");
 
+    // Multirun disabled at least while we're transitioning to parapara
+#if 0
     // Choose which of the multiple runs are being done in the current calculation
     unsigned int total_run_selections = user_input.vector_variable_size("-r");
 
@@ -274,15 +306,20 @@ void AmbitInterface::EnergyCalculations()
         for(int i = 0; i < user_input.GetNumRuns(); i++)
             run_indexes.push_back(i);
     }
+#else
+    run_indexes = { 0 };
+#endif
 
     // That's all we need to start the Atom class
     for(int run: run_indexes)
     {
         user_input.SetRun(run);
         std::string id = identifier + "_" + itoa(run);
-        atoms.emplace_back(user_input, Z, id);      // This copies the user_input, so each atom has its own.
+        LatticeConfig lattice_config = specification.getLatticeConfig();
+        atoms.emplace_back(user_input, lattice_config, Z, id);      // This copies the user_input, so each atom has its own.
     }
 
+#if 0
     // Start with -r=0 if possible, otherwise just first one
     int zero_index = user_input.FindZeroParameterRun().second;
     first_run_index = run_indexes.size();
@@ -294,6 +331,9 @@ void AmbitInterface::EnergyCalculations()
     }
     if(first_run_index >= run_indexes.size())   // -r=0 not found
         first_run_index = 0;
+#else
+    first_run_index = 0;
+#endif
 
     // Log first build
     DebugOptions.LogFirstBuild(true);
@@ -491,7 +531,7 @@ void AmbitInterface::Recombination()
     }
 
     *outstream << "\nTarget:" << std::endl;
-    AmbitInterface target_calculator(target_input, target_id);
+    AmbitInterface target_calculator(target_input, {}, target_id);
     target_calculator.EnergyCalculations();
     *outstream << "----------------------------------------------------------" << std::endl;
 
@@ -556,7 +596,7 @@ void AmbitInterface::InternalConversion()
     }
 
     *outstream << "\nSource:" << std::endl;
-    AmbitInterface source_calculator(source_input, source_id);
+    AmbitInterface source_calculator(source_input, {}, source_id);
     source_calculator.EnergyCalculations();
     *outstream << "----------------------------------------------------------" << std::endl;
 

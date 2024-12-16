@@ -69,9 +69,10 @@ add_subdirectory(Configuration)
 add_subdirectory(ExternalField)
 add_subdirectory(HartreeFock)
 add_subdirectory(MBPT)
+add_subdirectory(Specification)
 add_subdirectory(Universal)
 
-target_link_libraries(ambit PUBLIC atom basis configuration externalfield hartreefock mbpt universal)
+target_link_libraries(ambit PUBLIC atom basis configuration externalfield hartreefock mbpt specification universal)
 
 # Install the "ambit" exe into "./bin".
 install(TARGETS ambit DESTINATION "bin")
