@@ -25,5 +25,6 @@ if(USE_OPENMP)
 endif()
 
 target_link_libraries(configuration PUBLIC Eigen3::Eigen)
+target_link_libraries(configuration PUBLIC absl::flat_hash_map)
 target_include_directories(configuration PRIVATE ${Boost_INCLUDE_DIRS})
 target_link_libraries(configuration PUBLIC mbpt)

@@ -68,7 +68,7 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
     }
 
     // Total number of chunks = ceiling(number of configs/configs_per_chunk)
-    unsigned int total_num_chunks = (configs->size() + configs_per_chunk - 1)/configs_per_chunk;
+    size_t total_num_chunks = (configs->size() + configs_per_chunk - 1)/configs_per_chunk;
 
     // Divide up chunks
     auto config_it = configs->begin();
@@ -81,8 +81,8 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
     for(int chunk_index = 0; chunk_index < total_num_chunks; chunk_index++)
     {
         // Get chunk num_rows and number of configs. Allocates resources for the chunks.
-        unsigned int current_num_rows = 0;
-        unsigned int current_num_configs = 0;
+        size_t current_num_rows = 0;
+        size_t current_num_configs = 0;
         size_t current_chunk_work_units = 0;
         while(config_it != configs->end() && current_num_configs < configs_per_chunk)
         {
@@ -148,6 +148,11 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
     config_it = configs->begin();
     config_index = 0;
     csf_start = 0;
+    csf_offsets.clear();
+    size_t csf_rsum = 0;
+    // Start with an offset of 0 for the first chunk. Each chunk's number of rows serves as the
+    // offset for the *next* chunk along
+    csf_offsets.push_back(0);
     int num_big_chunks = 0;
 
     for(int chunk_index = 0; chunk_index < total_num_chunks; chunk_index++)
@@ -160,6 +165,10 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
         {
             current_chunk_work_units += config_it->projection_size()*config_it->projection_size()*config_it->NumCSFs();
             current_num_rows += config_it->NumCSFs();
+            // Keep track of the CSF offset for this configuration, relative to the start of the
+            // config_list
+            csf_rsum += config_it->NumCSFs();
+            csf_offsets.push_back(csf_rsum);
             current_num_configs++;
             config_it++;
         }
@@ -208,8 +217,247 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
     
     // Loop through my chunks
     RelativisticConfigList::const_iterator configsubsetend_it = configs->small_end();
-    unsigned int configsubsetend = configs->small_size();
+    size_t configsubsetend = configs->small_size();
 
+    /********************* EVK DEBUG **********************/
+    //*outstream << "Generating CI matrix..." << std::endl;
+    //*outstream << "Chunks: " << chunks.size() <<  ", Configs: " << configs->size() << ", Nsmall: " << configs->small_size() << std::endl;
+    for(size_t chunk_index = 0; chunk_index < chunks.size(); chunk_index++)
+    {
+        auto& current_chunk = chunks[chunk_index];
+        /********************* EVK DEBUG **********************/
+        //*outstream << "Generating off-diagonal for chunk " << chunk_index << " of " << chunks.size() << std::endl;
+
+        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& M = current_chunk.chunk;
+        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& D = current_chunk.diagonal;
+        // Loop through configs for this chunk
+        for(size_t config_index_i = current_chunk.config_indices.first; config_index_i < current_chunk.config_indices.second; config_index_i++)
+        {
+            size_t jend;
+            if(config_index_i < Nsmall)
+            {
+                jend = config_index_i+1;
+            }
+            else
+            {
+                jend = Nsmall;
+            }
+
+            auto config_i = (*configs)[config_index_i];
+            bool leading_config_i = H_three_body && std::binary_search(leading_configs->first.begin(), leading_configs->first.end(), NonRelConfiguration(*config_i));
+
+            // Projections for this config
+            size_t nproj_i = config_i->projection_size();
+            // projections_i is a plain vector of projection objects which belong to this
+            // configuration. It does not keep track of CSFs or other angular momentum 
+            // bookkeeping stuff
+            auto projections_i = config_i->GetProjectionList();
+            
+            // Loop over configuration columns in the matrix. This loop will run from [0,
+            // config_index_i] for configurations in the "small-side" and [0, Nsmall] otherwise.
+            // TODO EVK: It's currently a triangular loop range, so will need to manually fuse
+            // these to use omp collapse later on.
+            for(size_t config_index_j = 0; config_index_j < jend; config_index_j++)
+            {
+                auto config_j = (*configs)[config_index_j];
+                bool leading_config_j = H_three_body && std::binary_search(leading_configs->first.begin(), leading_configs->first.end(), NonRelConfiguration(*config_j));
+
+                // Check that the number of differences is small enough
+                int config_diff_num = config_it->GetConfigDifferencesCount(*config_j);
+                bool do_three_body = (leading_config_i || leading_config_j) && (config_diff_num <= 3);
+                if(do_three_body || (config_diff_num <= 2))
+                {
+
+                    for(size_t proj_index_i = 0; proj_index_i < nproj_i; proj_index_i++)
+                    {
+                        auto proj_i = projections_i[proj_index_i];
+
+                        // Grab the angular data objects for these configurations and figure out 
+                        // the projection loop bounds
+                        size_t nproj_j = config_j->projection_size();
+
+                        // projections_j is a plain vector of projection objects which belong to
+                        // this configuration. It does not keep track of CSFs or other angular 
+                        // momentum bookkeeping stuff
+                        auto projections_j = config_j->GetProjectionList();
+
+                        // Note that the angular momentum matrices are symmetric so we only need
+                        // to calculate half the coefficients if config_it == config_jt
+                        size_t start_proj_j;
+                        if(config_j == config_i)
+                            start_proj_j = proj_index_i;
+                        else
+                            start_proj_j = 0;
+
+                        for(size_t proj_index_j = start_proj_j; proj_index_j < nproj_j; proj_index_j++)
+                        {
+                            auto proj_j = projections_j[proj_index_j];
+                            
+                            double operatorH;
+                            if(do_three_body)
+                            {
+                                operatorH = H_three_body->GetMatrixElement(proj_i, proj_j);
+                            }
+                            else
+                            {
+                                operatorH = H_two_body->GetMatrixElement(proj_i, proj_j);
+                            }
+                            if(fabs(operatorH) > 1.e-15)
+                            {
+
+                            // Now get some iterators of CSFs corresponding to this pair of
+                            // configurations and projections. This will be a random-access
+                            // iterator. The CSF coefficients are stored in the angular_data
+                            // pointer for each RelativisticConfiguration (config_i and config_j),
+                            // and are organised such that we call CSF_begin(i) to get the NumCSFs
+                            // CSFs corresponding to the i'th projection. Similarly, CSF_end(i)
+                            // will get the last CSF corresponding to the i'th projection
+                            for(int ii = 0; ii < config_i->NumCSFs(); ii++)
+                            {
+                                auto coeff_i = config_i->GetAngularData()
+                                                       ->CSF_begin(proj_index_i) + ii;
+                                // Now do the same for the proj_j/config_j CSFs, with the caveat
+                                // that the angular momentum matrices are symmetric so we only need
+                                // to calculate half the coefficients if proj_it == proj_jt. Also,
+                                // in this case config_j->NumCSFs() == config_i->NumCSFs()
+                                auto start_CSF_j = 0;
+                                // TODO EVK: Verify that I'm using the correct definition to check
+                                // for equality between projections!
+                                if(proj_i == proj_j)
+                                    start_CSF_j = ii;
+                                for(auto jj = start_CSF_j; jj < config_j->NumCSFs(); jj++)
+                                {
+                                    auto coeff_j = config_j->GetAngularData()
+                                                           ->CSF_begin(proj_index_i) + jj;
+                                    // Calculate indices and offsets here. Note that ii and jj only
+                                    // give us the CSF row and column indices relative to this pair
+                                    // of configs, so we need to add in an offset to get the
+                                    // indices for *this chunk's* matrix slice. The config index is
+                                    // relative to a global list of all relativistic configurations
+                                    // involved in building the CI matrix, so the offsets will also
+                                    // be global (i.e. relative to this config's position in the
+                                    // big list o' configs)
+                                    size_t csf_offset_i = csf_offsets[config_index_i];
+                                    size_t csf_offset_j = csf_offsets[config_index_j];
+                                    size_t chunk_row = ii + csf_offset_i;
+                                    size_t chunk_col = jj + csf_offset_j;
+                                    if(chunk_row > chunk_col)
+                                        M(chunk_row - current_chunk.start_row, chunk_col) += operatorH * (*coeff_i) * (*coeff_j);
+                                    else if(chunk_row < chunk_col)
+                                        M(chunk_col - current_chunk.start_row, chunk_row) += operatorH * (*coeff_i) * (*coeff_j);
+                                    else if(proj_i == proj_j)
+                                        M(chunk_row - current_chunk.start_row, chunk_col) += operatorH * (*coeff_i) * (*coeff_j);
+                                    else
+                                        M(chunk_row - current_chunk.start_row, chunk_col) += 2. * operatorH * (*coeff_i) * (*coeff_j);
+
+                                } // CSF jj
+                            } // CSF ii
+                            } // if operatorH > 1e-15. Indenting has changed here so everything
+                              // fits on screen
+                        } // proj_index_j
+                    } // proj_index_i
+                } // Check do_three_body
+            } // config_index_j
+
+            // Now do the diagonal elements if this is not a "small-side" configurations
+            // This is the same logic as the off-diagonal loop, but with easier bookkeeping since
+            // we always have config_i == config_j
+            if(config_index_i >= Nsmall)
+            {
+                /********************* EVK DEBUG **********************/
+                //*outstream << "Doing diagonal for chunk " << chunk_index << std::endl;
+                int diag_offset = current_chunk.start_row + current_chunk.num_rows - current_chunk.diagonal.rows();
+                // Projections for this config
+                size_t nproj_i = config_i->projection_size();
+                // projections_i is a plain vector of projection objects which belong to this
+                // configuration. It does not keep track of CSFs or other angular momentum 
+                // bookkeeping stuff
+                auto projections_i = config_i->GetProjectionList();
+                for(size_t proj_index_i = 0; proj_index_i < nproj_i; proj_index_i++)
+                {
+                    auto proj_i = projections_i[proj_index_i];
+
+                    // Grab the angular data objects for these configurations and figure out 
+                    // the projection loop bounds
+                    size_t nproj_j = config_i->projection_size();
+
+                    // projections_j is a plain vector of projection objects which belong to
+                    // this configuration. It does not keep track of CSFs or other angular 
+                    // momentum bookkeeping stuff
+                    auto projections_j = config_i->GetProjectionList();
+                    for(size_t proj_index_j = proj_index_i; proj_index_j < nproj_j; proj_index_j++)
+                    {
+                        auto proj_j = projections_j[proj_index_j];
+
+                        double operatorH = H_two_body->GetMatrixElement(proj_i, proj_j);
+
+                        if(fabs(operatorH) > 1.e-15)
+                        {
+                            // Now get some iterators of CSFs corresponding to this pair of
+                            // configurations and projections. This will be a random-access
+                            // iterator. The CSF coefficients are stored in the angular_data
+                            // pointer for each RelativisticConfiguration (config_i and config_j),
+                            // and are organised such that we call CSF_begin(i) to get the NumCSFs
+                            // CSFs corresponding to the i'th projection. Similarly, CSF_end(i)
+                            // will get the last CSF corresponding to the i'th projection
+                            for(int ii = 0; ii < config_i->NumCSFs(); ii++)
+                            {
+                                auto coeff_i = config_i->GetAngularData()
+                                                       ->CSF_begin(proj_index_i) + ii;
+                                // Now do the same for the proj_j/config_j CSFs, with the caveat
+                                // that the angular momentum matrices are symmetric so we only need
+                                // to calculate half the coefficients if proj_it == proj_jt. Also,
+                                // in this case config_j->NumCSFs() == config_i->NumCSFs()
+                                auto start_CSF_j = 0;
+                                // TODO EVK: Verify that I'm using the correct definition to check
+                                // for equality between projections!
+                                if(proj_i == proj_j)
+                                    start_CSF_j = ii;
+                                for(auto jj = start_CSF_j; jj < config_i->NumCSFs(); jj++)
+                                {
+                                    auto coeff_j = config_i->GetAngularData()
+                                                           ->CSF_begin(proj_index_i) + jj;
+                                    // Calculate indices and offsets here. Note that ii and jj 
+                                    // only give us the CSF row and column indices relative to 
+                                    // this pair of configs, so we need to add in an offset to
+                                    // get the indices for *this chunk's* matrix slice. The 
+                                    // config index is relative to a global list of all 
+                                    // relativistic configurations involved in building the CI
+                                    // matrix, so the offsets will also be global (i.e. relative 
+                                    // to this config's position in the big list o' configs)
+                                    size_t csf_offset_i = csf_offsets[config_index_i];
+                                    size_t csf_offset_j = csf_offsets[config_index_i];
+                                    size_t chunk_row = ii + csf_offset_i;
+                                    size_t chunk_col = jj + csf_offset_j;
+
+                                    if(chunk_row > chunk_col)
+                                        D(chunk_row - diag_offset, chunk_col- diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
+                                    else if(chunk_row < chunk_col)
+                                        D(chunk_col - diag_offset, chunk_row - diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
+                                    else if(proj_i == proj_j)
+                                        D(chunk_row - diag_offset, chunk_col- diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
+                                    else
+                                        D(chunk_row - diag_offset, chunk_col- diag_offset) += 2. * operatorH * (*coeff_i) * (*coeff_j);
+
+                                } // jj
+                            } // ii
+
+                        } // if(operatorH)
+                    } // proj_index_j
+
+                } // proj_index_i
+ 
+            } // if(config_index_i >= configs->small_size())
+            /********************* EVK DEBUG **********************/
+            //*outstream << "Finished config " << config_index_i << " of " << current_chunk.config_indices.second << std::endl;
+        } // Config_index_i 
+    } // Chunks
+
+    /********************* EVK DEBUG **********************/
+    //*outstream << "Finished generating matrix" << std::endl;
+
+    // Original loop to generate matrix elements
+#ifdef XXX
 #ifdef AMBIT_USE_OPENMP
     #pragma omp parallel private(config_it)
     {
@@ -224,15 +472,16 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& D = current_chunk.diagonal;
 
         // Loop through configs for this chunk
-        config_it = (*configs)[current_chunk.config_indices.first];
-        for(unsigned int config_index = current_chunk.config_indices.first; config_index < current_chunk.config_indices.second; config_index++)
+        for(size_t config_index_i = current_chunk.config_indices.first; config_index_i < current_chunk.config_indices.second; config_index_i++)
         {
+            config_it = configs->begin();
+            std::advance(config_it, config_index_i);
             bool leading_config_i = H_three_body && std::binary_search(leading_configs->first.begin(), leading_configs->first.end(), NonRelConfiguration(*config_it));
 
             // Loop through the rest of the configs
             auto config_jt = configs->begin();
             RelativisticConfigList::const_iterator config_jend;
-            if(config_index < configsubsetend)
+            if(config_index_i < configsubsetend)
             {   config_jend = config_it;
                 ++config_jend;
             }
@@ -316,7 +565,7 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
 #endif
 
             // Diagonal
-            if(config_index >= configs->small_size())
+            if(config_index_i >= configs->small_size())
             {
 #ifdef AMBIT_USE_OPENMP
                 #pragma omp task untied \
@@ -371,14 +620,15 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                 } // OMP task
 #endif
             } // Conditional for diagonal elements
-            config_it++;
+            //config_it++;
         } // Configs in chunk
     } // Chunks loop
 #ifdef AMBIT_USE_OPENMP
     } // OMP single
     }  // OMP Parallel
 #endif
-
+#endif
+    // XXX ifdef
     for(auto& matrix_section: chunks)
         matrix_section.Symmetrize();
 }

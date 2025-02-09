@@ -2,6 +2,8 @@
 #define RELATIVISTIC_CONFIG_LIST_H
 
 #include "RelativisticConfiguration.h"
+#include <boost/container/flat_map.hpp>
+#include <absl/container/btree_map.h>
 
 namespace Ambit
 {
@@ -9,6 +11,7 @@ class ConfigurationComparator;
 class MostCSFsFirstComparator;
 class FewestProjectionsFirstComparator;
 class MostProjectionsFirstComparator;
+class MostWorkFirstComparator;
 
 /** RelativisticConfigList includes projection and CSF information over the whole list.
     There are two types of iterators provided:
@@ -85,6 +88,8 @@ public: // Define iterators
 
         /** Start index of current CSFs (i.e. those from current RelativisticConfiguration) in the complete RelativisticConfigList. */
         int csf_offset() const { return m_csf_index; }
+
+        RelativisticConfiguration get_config() const { return *(this->base_reference()); }
 
     private:
         friend class boost::iterator_core_access;
@@ -186,12 +191,6 @@ public:
     RelativisticConfiguration& front() { return m_list.front(); }
     const RelativisticConfiguration& front() const { return m_list.front(); }
 
-    /** Get iterator for the ith RelativisticConfiguration (with correct CSF offset).
-        PRE: i <= size().
-     */
-    iterator operator[](unsigned int i);
-    const_iterator operator[](unsigned int i) const;
-
     const_projection_iterator projection_begin() const;
     const_projection_iterator projection_end() const;
     unsigned int projection_size() const;   //!< Total number of projections stored in entire list
@@ -204,14 +203,13 @@ public:
     unsigned int small_size() const { return Nsmall; }
 
     /** Sort list by comparator, preserving the separation between the first Nsmall configs and the rest. */
-    template<class Comparator = MostProjectionsFirstComparator>
+    template<class Comparator = MostWorkFirstComparator>
     void sort(Comparator comp = Comparator());
 
     /** Remove consecutive duplicates, preserving Nsmall.
         PRE: list is sorted using sort.
      */
     void unique();
-
 public:
     unsigned int NumCSFs() const;   //!< Total number of CSFs stored in entire list
     unsigned int NumCSFsSmall() const;  //!< Number of CSFs stored in subset [0, Nsmall)
@@ -224,6 +222,26 @@ public:
 protected:
     BaseList m_list;
     unsigned int Nsmall {0};
+
+// Helper functions to return a "plain" random-access iterator that doesn't do any book-keeping
+// around projections and CSFs
+typedef BaseList::const_iterator const_random_access_iterator;
+typedef BaseList::iterator random_access_iterator;
+public: 
+    const_random_access_iterator random_access_begin() { return m_list.begin(); }
+    const_random_access_iterator random_access_end() { return m_list.end(); }
+    const_random_access_iterator random_access_small_end() { return m_list.begin() + Nsmall; }
+
+    /** Get iterator for the ith RelativisticConfiguration (with correct CSF offset).
+        PRE: i <= size().
+     */
+    /******************************** WARNING ****************************
+     * These functions now return truly random-access iterators with no bookkeeping around 
+     * projection and CSF offsets. If you use these, you must handle AngularData indexing 
+     * yourself!
+     */
+    random_access_iterator operator[](unsigned int i);
+    const_random_access_iterator operator[](unsigned int i) const;
 };
 
 class ConfigurationComparator
@@ -277,7 +295,6 @@ public:
     }
 };
 
-/**************************** EVK *****************************/
 // Comparator to sort configurations based on the approximate amount of work required to generate
 // their corresponding matrix elements. Hopefully useful for load balancing between MPI ranks and
 // OpenMP threads
@@ -296,7 +313,6 @@ public:
             return(first < second);
     }
 };
-
 
 
 template<typename... Args>

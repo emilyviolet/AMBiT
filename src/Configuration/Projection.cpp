@@ -33,6 +33,22 @@ const ElectronInfo& Projection::operator[](unsigned int i) const
     return config[i];
 }
 
+// Compare equality, assuming two projections are equal iff all the elements of their respective
+// "config" vectors are equal
+// TODO EVK: are the elements of config sorted in some way?
+const bool Projection::operator==(const Projection& other) const
+{
+    if(this->config.size() != other.config.size())
+        return false;
+    // Loop through configurations
+    for(size_t ii = 0; ii < this->config.size(); ii++)
+    {
+        if(this->config[ii] != other.config[ii])
+            return false;
+    }
+    return true;
+}
+
 Parity Projection::GetParity() const
 {
     int sum = 0;

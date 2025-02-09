@@ -99,6 +99,9 @@ protected:
             if(Nsmall < start_row + num_rows)
             {   unsigned int diagonal_size = mmin(num_rows, start_row + num_rows - Nsmall);
                 diagonal = RowMajorMatrix::Zero(diagonal_size, diagonal_size);
+                /************************ EVK DEBUG *******************/
+                //*outstream << "Chunk diagonal: " << diagonal_size 
+                //           << ", matrix size: "  << diagonal.rows() << " x " << diagonal.cols() << std::endl;
             }
         }
 
@@ -130,6 +133,8 @@ protected:
 
     std::vector<MatrixChunk> chunks;
     unsigned int most_chunk_rows;
+    std::vector<size_t> csf_offsets; // CSF index offsets for each configuration in the list of
+                                     // configs
 };
 
 }

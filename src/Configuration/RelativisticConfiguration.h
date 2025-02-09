@@ -70,6 +70,9 @@ public:
         else return 0;
     }
 
+    ProjectionList GetProjectionList() { return projections; }
+    pAngularData GetAngularData() { return angular_data; }
+
 public:
     /** Iterator over projections and CSFs. */
     class const_projection_iterator : public boost::iterator_adaptor<

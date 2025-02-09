@@ -47,14 +47,18 @@ RelativisticConfigList::iterator RelativisticConfigList::erase(iterator first, i
     return iterator(m_list.erase(first.base(), last.base()));
 }
 
-RelativisticConfigList::iterator RelativisticConfigList::operator[](unsigned int i)
+/******************************** WARNING ****************************
+ * These functions now return truly random-access iterators with no bookkeeping around projection
+ * and CSF offsets. If you use these, you must handle AngularData indexing yourself!
+ */
+RelativisticConfigList::random_access_iterator RelativisticConfigList::operator[](unsigned int i)
 {
-    return std::next(begin(), i);
+    return m_list.begin() + i;
 }
 
-RelativisticConfigList::const_iterator RelativisticConfigList::operator[](unsigned int i) const
+RelativisticConfigList::const_random_access_iterator RelativisticConfigList::operator[](unsigned int i) const
 {
-    return std::next(begin(), i);
+    return m_list.begin() + i;
 }
 
 RelativisticConfigList::const_projection_iterator RelativisticConfigList::projection_begin() const
@@ -138,4 +142,5 @@ void RelativisticConfigList::Write(FILE* fp) const
         relconfig.Write(fp);
     }
 }
+
 }

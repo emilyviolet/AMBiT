@@ -532,7 +532,7 @@ void ConfigGenerator::GenerateExcitations(pRelativisticConfigList configlist, Or
     }
 
     configlist->SetSmallSize(configlist->size());
-    configlist->sort(MostProjectionsFirstComparator());
+    configlist->sort(MostWorkFirstComparator());
     configlist->unique();
 }
 

@@ -39,6 +39,7 @@ public:
     unsigned int size() const { return config.size(); }
     ElectronInfo& operator[](unsigned int i);
     const ElectronInfo& operator[](unsigned int i) const;
+    const bool operator==(const Projection& other) const;
 
     Parity GetParity() const;
     int GetTwoM() const;
