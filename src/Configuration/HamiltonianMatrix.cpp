@@ -219,15 +219,9 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
     RelativisticConfigList::const_iterator configsubsetend_it = configs->small_end();
     size_t configsubsetend = configs->small_size();
 
-    /********************* EVK DEBUG **********************/
-    //*outstream << "Generating CI matrix..." << std::endl;
-    //*outstream << "Chunks: " << chunks.size() <<  ", Configs: " << configs->size() << ", Nsmall: " << configs->small_size() << std::endl;
     for(size_t chunk_index = 0; chunk_index < chunks.size(); chunk_index++)
     {
         auto& current_chunk = chunks[chunk_index];
-        /********************* EVK DEBUG **********************/
-        //*outstream << "Generating off-diagonal for chunk " << chunk_index << " of " << chunks.size() << std::endl;
-
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& M = current_chunk.chunk;
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& D = current_chunk.diagonal;
         // Loop through configs for this chunk
@@ -263,7 +257,7 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                 bool leading_config_j = H_three_body && std::binary_search(leading_configs->first.begin(), leading_configs->first.end(), NonRelConfiguration(*config_j));
 
                 // Check that the number of differences is small enough
-                int config_diff_num = config_it->GetConfigDifferencesCount(*config_j);
+                int config_diff_num = config_i->GetConfigDifferencesCount(*config_j);
                 bool do_three_body = (leading_config_i || leading_config_j) && (config_diff_num <= 3);
                 if(do_three_body || (config_diff_num <= 2))
                 {
@@ -282,7 +276,7 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                         auto projections_j = config_j->GetProjectionList();
 
                         // Note that the angular momentum matrices are symmetric so we only need
-                        // to calculate half the coefficients if config_it == config_jt
+                        // to calculate half the coefficients if config_i == config_j
                         size_t start_proj_j;
                         if(config_j == config_i)
                             start_proj_j = proj_index_i;
@@ -312,6 +306,8 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                             // and are organised such that we call CSF_begin(i) to get the NumCSFs
                             // CSFs corresponding to the i'th projection. Similarly, CSF_end(i)
                             // will get the last CSF corresponding to the i'th projection
+                            // to calculate half the coefficients if proj_it == proj_jt. Also,
+                            // in this case config_j->NumCSFs() == config_i->NumCSFs()
                             for(int ii = 0; ii < config_i->NumCSFs(); ii++)
                             {
                                 auto coeff_i = config_i->GetAngularData()
@@ -328,7 +324,7 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                                 for(auto jj = start_CSF_j; jj < config_j->NumCSFs(); jj++)
                                 {
                                     auto coeff_j = config_j->GetAngularData()
-                                                           ->CSF_begin(proj_index_i) + jj;
+                                                           ->CSF_begin(proj_index_j) + jj;
                                     // Calculate indices and offsets here. Note that ii and jj only
                                     // give us the CSF row and column indices relative to this pair
                                     // of configs, so we need to add in an offset to get the
@@ -341,6 +337,7 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                                     size_t csf_offset_j = csf_offsets[config_index_j];
                                     size_t chunk_row = ii + csf_offset_i;
                                     size_t chunk_col = jj + csf_offset_j;
+
                                     if(chunk_row > chunk_col)
                                         M(chunk_row - current_chunk.start_row, chunk_col) += operatorH * (*coeff_i) * (*coeff_j);
                                     else if(chunk_row < chunk_col)
@@ -349,7 +346,6 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                                         M(chunk_row - current_chunk.start_row, chunk_col) += operatorH * (*coeff_i) * (*coeff_j);
                                     else
                                         M(chunk_row - current_chunk.start_row, chunk_col) += 2. * operatorH * (*coeff_i) * (*coeff_j);
-
                                 } // CSF jj
                             } // CSF ii
                             } // if operatorH > 1e-15. Indenting has changed here so everything
@@ -364,8 +360,6 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
             // we always have config_i == config_j
             if(config_index_i >= Nsmall)
             {
-                /********************* EVK DEBUG **********************/
-                //*outstream << "Doing diagonal for chunk " << chunk_index << std::endl;
                 int diag_offset = current_chunk.start_row + current_chunk.num_rows - current_chunk.diagonal.rows();
                 // Projections for this config
                 size_t nproj_i = config_i->projection_size();
@@ -400,7 +394,7 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                             // and are organised such that we call CSF_begin(i) to get the NumCSFs
                             // CSFs corresponding to the i'th projection. Similarly, CSF_end(i)
                             // will get the last CSF corresponding to the i'th projection
-                            for(int ii = 0; ii < config_i->NumCSFs(); ii++)
+                            for(size_t ii = 0; ii < config_i->NumCSFs(); ii++)
                             {
                                 auto coeff_i = config_i->GetAngularData()
                                                        ->CSF_begin(proj_index_i) + ii;
@@ -413,10 +407,10 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                                 // for equality between projections!
                                 if(proj_i == proj_j)
                                     start_CSF_j = ii;
-                                for(auto jj = start_CSF_j; jj < config_i->NumCSFs(); jj++)
+                                for(size_t jj = start_CSF_j; jj < config_i->NumCSFs(); jj++)
                                 {
                                     auto coeff_j = config_i->GetAngularData()
-                                                           ->CSF_begin(proj_index_i) + jj;
+                                                           ->CSF_begin(proj_index_j) + jj;
                                     // Calculate indices and offsets here. Note that ii and jj 
                                     // only give us the CSF row and column indices relative to 
                                     // this pair of configs, so we need to add in an offset to
@@ -438,7 +432,6 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                                         D(chunk_row - diag_offset, chunk_col- diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
                                     else
                                         D(chunk_row - diag_offset, chunk_col- diag_offset) += 2. * operatorH * (*coeff_i) * (*coeff_j);
-
                                 } // jj
                             } // ii
 
@@ -448,13 +441,8 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                 } // proj_index_i
  
             } // if(config_index_i >= configs->small_size())
-            /********************* EVK DEBUG **********************/
-            //*outstream << "Finished config " << config_index_i << " of " << current_chunk.config_indices.second << std::endl;
         } // Config_index_i 
     } // Chunks
-
-    /********************* EVK DEBUG **********************/
-    //*outstream << "Finished generating matrix" << std::endl;
 
     // Original loop to generate matrix elements
 #ifdef XXX
