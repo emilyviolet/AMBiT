@@ -24,6 +24,12 @@ if(USE_OPENMP)
   target_link_libraries(configuration PUBLIC OpenMP::OpenMP_CXX)
 endif()
 
+if(USE_KOKKOS)
+  target_compile_definitions(ambit PRIVATE -DAMBIT_USE_KOKKOS)
+  find_package(Kokkos 4.2 REQUIRED CONFIG)
+  target_link_libraries(configuration PUBLIC Kokkos::kokkos)
+endif()
+
 target_link_libraries(configuration PUBLIC Eigen3::Eigen)
 target_link_libraries(configuration PUBLIC absl::flat_hash_map)
 target_include_directories(configuration PRIVATE ${Boost_INCLUDE_DIRS})

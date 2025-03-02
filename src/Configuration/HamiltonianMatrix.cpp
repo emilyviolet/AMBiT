@@ -15,7 +15,6 @@
 #include<omp.h>
 #endif
 
-
 // Don't bother with davidson method if smaller than this limit
 #define SMALL_MATRIX_LIM 200
 
@@ -215,7 +214,7 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
     *logstream << "Maximum workload: " << *max_work_it << std::endl;
     *logstream << "The relative workload imbalance across MPI processes is " << imbalance << "%" << std::endl;
     
-    // Loop through my chunks
+    // Loop through my chunks. This is the bit that does all the work
     RelativisticConfigList::const_iterator configsubsetend_it = configs->small_end();
     size_t configsubsetend = configs->small_size();
 
@@ -277,6 +276,10 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
 
                         // Note that the angular momentum matrices are symmetric so we only need
                         // to calculate half the coefficients if config_i == config_j
+                        //
+                        // TODO EVK: is it possible to rewrite this so that we have square loop
+                        // bounds, but just divide by 2 for the appropriate elements to avoid
+                        // double-counting?
                         size_t start_proj_j;
                         if(config_j == config_i)
                             start_proj_j = proj_index_i;

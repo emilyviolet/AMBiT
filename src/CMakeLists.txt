@@ -78,6 +78,14 @@ if(USE_OPENMP)
   target_link_libraries(ambit PUBLIC OpenMP::OpenMP_CXX)
 endif()
 
+# Kokkos options. Currently very experimental and won't work with OpenMP
+set(USE_KOKKOS OFF CACHE BOOL "Enable Kokkos support in AMBiT")
+if(USE_KOKKOS)
+  target_compile_definitions(ambit PRIVATE -DAMBIT_USE_KOKKOS)
+  find_package(Kokkos 4.2 REQUIRED CONFIG)
+  target_link_libraries(ambit PUBLIC Kokkos::kokkos)
+endif()
+
 # Now include the directories for the different ambit modules and link against the static libs
 add_subdirectory(Atom)
 add_subdirectory(Basis)

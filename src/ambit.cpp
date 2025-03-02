@@ -1,6 +1,9 @@
 #ifdef AMBIT_USE_MPI
 #include <mpi.h>
 #endif
+#ifdef AMBIT_USE_KOKKOS
+#include<Kokkos_Core.hpp>
+#endif
 #include "Include.h"
 #include "Atom/OutStreams.h"
 #include "gitInfo.h"
@@ -43,7 +46,6 @@ Ambit::Debug Ambit::DebugOptions;
 int main(int argc, char* argv[])
 {
     using namespace Ambit;
-
     #ifdef AMBIT_USE_MPI
         #ifdef AMBIT_USE_OPENMP
             int MPI_thread_safety;
@@ -67,7 +69,10 @@ int main(int argc, char* argv[])
         NumProcessors = 1;
         ProcessorRank = 0;
     #endif
-
+#ifdef AMBIT_USE_KOKKOS
+    Kokkos::initialize(argc, argv);
+    {
+#endif
     // Set the file permissions so generated files can be read and written to by group, as well as user
     // (so AngularData files can be reused by different users) and register our custom signal handler
     // for SIGTERM and SIGSEGV.
@@ -185,6 +190,10 @@ int main(int argc, char* argv[])
     {   *errstream << ba.what() << std::endl;
         exit(1);
     }
+#ifdef AMBIT_USE_KOKKOS
+    } // Kokkos variables should all be freed after this point
+    Kokkos::finalize();
+#endif
 
     #ifdef AMBIT_USE_MPI
         MPI_Barrier(MPI_COMM_WORLD);
@@ -199,8 +208,8 @@ int main(int argc, char* argv[])
 
     *outstream << "\nFinished" << std::endl;
     OutStreams::FinaliseStreams();
-
     return 0;
+
 }
 
 namespace Ambit
