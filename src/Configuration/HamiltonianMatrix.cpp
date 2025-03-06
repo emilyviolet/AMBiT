@@ -247,7 +247,26 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
         // Shared memory scratch space
         ScratchViewType temp_M(teamMember.team_scratch(0), chunk_rows, chunk_cols);
         ScratchViewType temp_D(teamMember.team_scratch(0), diag_rows, diag_cols);
-        
+
+        // Zero the scratch memory
+        Kokkos::parallel_for(Kokkos::TeamThreadRange(teamMember, chunk_rows), 
+                             KOKKOS_LAMBDA (int i) {
+            Kokkos::parallel_for(Kokkos::ThreadVectorRange(teamMember, chunk_cols),
+                                 KOKKOS_LAMBDA (int j) {
+                temp_M(i, j) = 0.0;
+            });
+        });
+
+        // And the diagonal
+        Kokkos::parallel_for(Kokkos::TeamThreadRange(teamMember, diag_rows), 
+                             KOKKOS_LAMBDA (int i) {
+            Kokkos::parallel_for(Kokkos::ThreadVectorRange(teamMember, diag_cols),
+                                 KOKKOS_LAMBDA (int j) {
+                temp_D(i, j) = 0.0;
+            });
+        });
+        teamMember.team_barrier();        
+
         // Host Eigen storage
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& M = current_chunk.chunk;
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& D = current_chunk.diagonal;
