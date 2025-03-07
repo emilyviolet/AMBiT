@@ -229,12 +229,12 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
     // Make sure we allocate enough space to hold the largest chunk (most_chunk_rows**2, no need
     // to worry about smallside, since this is by definition less than or equal to the maximum
     // number of rows). Also need to multiply this by 2 to hold the diagonal
-    using ScratchViewType = Kokkos::View<double**, Kokkos::DefaultExecutionSpace::scratch_memory_space>;
+    using ScratchViewType = Kokkos::View<double**, Kokkos::DefaultExecutionSpace::scratch_memory_space, Kokkos::MemoryTraits<Kokkos::Unmanaged> >;
     int scratch_size = ScratchViewType::shmem_size(most_chunk_rows, most_chunk_rows)*2;
 
     // Outermost (league) level of the hierarchical parallelism
     Kokkos::parallel_for("generate_chunks",
-                         team_policy(num_chunks, Kokkos::AUTO()).set_scratch_size(0, Kokkos::PerTeam(scratch_size)),
+                         team_policy(num_chunks, Kokkos::AUTO()).set_scratch_size(1, Kokkos::PerTeam(scratch_size)),
                          KOKKOS_LAMBDA (const MemberType& teamMember)
     {
         size_t chunk_index = teamMember.league_rank();
@@ -245,8 +245,11 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
         size_t diag_rows = current_chunk.diagonal.rows();
         size_t diag_cols = current_chunk.diagonal.cols();
         // Shared memory scratch space
-        ScratchViewType temp_M(teamMember.team_scratch(0), chunk_rows, chunk_cols);
-        ScratchViewType temp_D(teamMember.team_scratch(0), diag_rows, diag_cols);
+        // TODO EVK: Can't just store the whole matrix chunks, as this will exhaust the storage on
+        // large systems. Need more fine-grained control over scratch memory
+        /*
+        ScratchViewType temp_M(teamMember.team_scratch(1), chunk_rows, chunk_cols);
+        ScratchViewType temp_D(teamMember.team_scratch(1), diag_rows, diag_cols);
 
         // Zero the scratch memory
         Kokkos::parallel_for(Kokkos::TeamThreadRange(teamMember, chunk_rows), 
@@ -266,6 +269,7 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
             });
         });
         teamMember.team_barrier();        
+        */
 
         // Host Eigen storage
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& M = current_chunk.chunk;
@@ -322,7 +326,7 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                     // Next level of Kokkos hierarchical parallelism: TeamThreadRange
                     Kokkos::parallel_for(Kokkos::TeamThreadMDRange<Kokkos::Rank<2>, MemberType>
                                         (teamMember, nproj_i, nproj_j),
-                                        KOKKOS_LAMBDA(int proj_index_i, int proj_index_j)
+                                        [=](int proj_index_i, int proj_index_j)
                     {
                         auto projections_i = config_i->GetProjectionList();
                         auto proj_i = projections_i[proj_index_i];
@@ -397,13 +401,13 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                                 size_t chunk_col = jj + csf_offset_j;
 
                                 if(chunk_row > chunk_col)
-                                    temp_M(chunk_row - current_chunk.start_row, chunk_col) += operatorH * (*coeff_i) * (*coeff_j);
+                                    M_view(chunk_row - current_chunk.start_row, chunk_col) += operatorH * (*coeff_i) * (*coeff_j);
                                 else if(chunk_row < chunk_col)
-                                    temp_M(chunk_col - current_chunk.start_row, chunk_row) += operatorH * (*coeff_i) * (*coeff_j);
+                                    M_view(chunk_col - current_chunk.start_row, chunk_row) += operatorH * (*coeff_i) * (*coeff_j);
                                 else if(proj_i == proj_j)
-                                    temp_M(chunk_row - current_chunk.start_row, chunk_col) += operatorH * (*coeff_i) * (*coeff_j);
+                                    M_view(chunk_row - current_chunk.start_row, chunk_col) += operatorH * (*coeff_i) * (*coeff_j);
                                 else
-                                    temp_M(chunk_row - current_chunk.start_row, chunk_col) += 2. * operatorH * (*coeff_i) * (*coeff_j);
+                                    M_view(chunk_row - current_chunk.start_row, chunk_col) += 2. * operatorH * (*coeff_i) * (*coeff_j);
                             } // CSF jj
                         } // CSF ii
                         } // if operatorH > 1e-15. Indenting has changed here so everything
@@ -418,90 +422,83 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
             if(config_index_i >= Nsmall)
             {
                 int diag_offset = current_chunk.start_row + current_chunk.num_rows - current_chunk.diagonal.rows();
-                // Projections for this config
-                size_t nproj_i = config_i->projection_size();
                 // projections_i is a plain vector of projection objects which belong to this
                 // configuration. It does not keep track of CSFs or other angular momentum 
                 // bookkeeping stuff
+                size_t nproj_i = config_i->projection_size();
                 auto projections_i = config_i->GetProjectionList();
-                for(size_t proj_index_i = 0; proj_index_i < nproj_i; proj_index_i++)
+                size_t nproj_j = config_i->projection_size();
+                auto projections_j = config_i->GetProjectionList();
+                    // Next level of Kokkos hierarchical parallelism: TeamThreadRange
+                    Kokkos::parallel_for(Kokkos::TeamThreadMDRange<Kokkos::Rank<2>, MemberType>
+                                        (teamMember, nproj_i, nproj_j),
+                                        [=](int proj_index_i, int proj_index_j)
                 {
                     auto proj_i = projections_i[proj_index_i];
+                    auto proj_j = projections_j[proj_index_j];
 
-                    // Grab the angular data objects for these configurations and figure out 
-                    // the projection loop bounds
-                    size_t nproj_j = config_i->projection_size();
+                    // Divide everything by 2 to account for double-counting
+                    double operatorH = 0.5*H_two_body->GetMatrixElement(proj_i, proj_j);
 
-                    // projections_j is a plain vector of projection objects which belong to
-                    // this configuration. It does not keep track of CSFs or other angular 
-                    // momentum bookkeeping stuff
-                    auto projections_j = config_i->GetProjectionList();
-                    for(size_t proj_index_j = proj_index_i; proj_index_j < nproj_j; proj_index_j++)
+                    if(fabs(operatorH) > 1.e-15)
                     {
-                        auto proj_j = projections_j[proj_index_j];
-
-                        double operatorH = H_two_body->GetMatrixElement(proj_i, proj_j);
-
-                        if(fabs(operatorH) > 1.e-15)
+                        // Now get some iterators of CSFs corresponding to this pair of
+                        // configurations and projections. This will be a random-access
+                        // iterator. The CSF coefficients are stored in the angular_data
+                        // pointer for each RelativisticConfiguration (config_i and config_j),
+                        // and are organised such that we call CSF_begin(i) to get the NumCSFs
+                        // CSFs corresponding to the i'th projection. Similarly, CSF_end(i)
+                        // will get the last CSF corresponding to the i'th projection
+                        for(size_t ii = 0; ii < config_i->NumCSFs(); ii++)
                         {
-                            // Now get some iterators of CSFs corresponding to this pair of
-                            // configurations and projections. This will be a random-access
-                            // iterator. The CSF coefficients are stored in the angular_data
-                            // pointer for each RelativisticConfiguration (config_i and config_j),
-                            // and are organised such that we call CSF_begin(i) to get the NumCSFs
-                            // CSFs corresponding to the i'th projection. Similarly, CSF_end(i)
-                            // will get the last CSF corresponding to the i'th projection
-                            for(size_t ii = 0; ii < config_i->NumCSFs(); ii++)
+                            auto coeff_i = config_i->GetAngularData()
+                                                   ->CSF_begin(proj_index_i) + ii;
+                            // Now do the same for the proj_j/config_j CSFs, with the caveat
+                            // that the angular momentum matrices are symmetric so we only need
+                            // to calculate half the coefficients if proj_it == proj_jt. Also,
+                            // in this case config_j->NumCSFs() == config_i->NumCSFs()
+                            auto start_CSF_j = 0;
+                            // TODO EVK: Verify that I'm using the correct definition to check
+                            // for equality between projections!
+                            if(proj_i == proj_j)
+                                start_CSF_j = ii;
+                            for(size_t jj = start_CSF_j; jj < config_i->NumCSFs(); jj++)
                             {
-                                auto coeff_i = config_i->GetAngularData()
-                                                       ->CSF_begin(proj_index_i) + ii;
-                                // Now do the same for the proj_j/config_j CSFs, with the caveat
-                                // that the angular momentum matrices are symmetric so we only need
-                                // to calculate half the coefficients if proj_it == proj_jt. Also,
-                                // in this case config_j->NumCSFs() == config_i->NumCSFs()
-                                auto start_CSF_j = 0;
-                                // TODO EVK: Verify that I'm using the correct definition to check
-                                // for equality between projections!
-                                if(proj_i == proj_j)
-                                    start_CSF_j = ii;
-                                for(size_t jj = start_CSF_j; jj < config_i->NumCSFs(); jj++)
-                                {
-                                    auto coeff_j = config_i->GetAngularData()
-                                                           ->CSF_begin(proj_index_j) + jj;
-                                    // Calculate indices and offsets here. Note that ii and jj 
-                                    // only give us the CSF row and column indices relative to 
-                                    // this pair of configs, so we need to add in an offset to
-                                    // get the indices for *this chunk's* matrix slice. The 
-                                    // config index is relative to a global list of all 
-                                    // relativistic configurations involved in building the CI
-                                    // matrix, so the offsets will also be global (i.e. relative 
-                                    // to this config's position in the big list o' configs)
-                                    size_t csf_offset_i = csf_offsets[config_index_i];
-                                    size_t csf_offset_j = csf_offsets[config_index_i];
-                                    size_t chunk_row = ii + csf_offset_i;
-                                    size_t chunk_col = jj + csf_offset_j;
+                                auto coeff_j = config_i->GetAngularData()
+                                                       ->CSF_begin(proj_index_j) + jj;
+                                // Calculate indices and offsets here. Note that ii and jj 
+                                // only give us the CSF row and column indices relative to 
+                                // this pair of configs, so we need to add in an offset to
+                                // get the indices for *this chunk's* matrix slice. The 
+                                // config index is relative to a global list of all 
+                                // relativistic configurations involved in building the CI
+                                // matrix, so the offsets will also be global (i.e. relative 
+                                // to this config's position in the big list o' configs)
+                                size_t csf_offset_i = csf_offsets[config_index_i];
+                                size_t csf_offset_j = csf_offsets[config_index_i];
+                                size_t chunk_row = ii + csf_offset_i;
+                                size_t chunk_col = jj + csf_offset_j;
 
-                                    if(chunk_row > chunk_col)
-                                        temp_D(chunk_row - diag_offset, chunk_col- diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
-                                    else if(chunk_row < chunk_col)
-                                        temp_D(chunk_col - diag_offset, chunk_row - diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
-                                    else if(proj_i == proj_j)
-                                        temp_D(chunk_row - diag_offset, chunk_col- diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
-                                    else
-                                        temp_D(chunk_row - diag_offset, chunk_col- diag_offset) += 2. * operatorH * (*coeff_i) * (*coeff_j);
-                                } // jj
-                            } // ii
+                                if(chunk_row > chunk_col)
+                                    D_view(chunk_row - diag_offset, chunk_col- diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
+                                else if(chunk_row < chunk_col)
+                                    D_view(chunk_col - diag_offset, chunk_row - diag_offset) += operatorH * (*coeff_i) * (*coeff_j);
+                                // Factor of two since we're *not* double-counting in the case
+                                // where proj_i == proj_j
+                                else if(proj_i == proj_j)
+                                    D_view(chunk_row - diag_offset, chunk_col- diag_offset) += 2.0*operatorH * (*coeff_i) * (*coeff_j);
+                                else
+                                    D_view(chunk_row - diag_offset, chunk_col- diag_offset) += 2. * operatorH * (*coeff_i) * (*coeff_j);
+                            } // jj
+                        } // ii
 
-                        } // if(operatorH)
-                    } // proj_index_j
-
-                } // proj_index_i
+                    } // if(operatorH)
+                }); // proj_index_i lambda
  
             } // if(config_index_i >= configs->small_size())
         } // Config_index_i
         /******************* TODO EVK: ***************************
          * Write scratch stuff back to host memory. Only need to do this once per team
-         *********************************************************/
         teamMember.team_barrier();
         Kokkos::parallel_for(Kokkos::TeamThreadRange(teamMember, chunk_rows), 
                              KOKKOS_LAMBDA (int i) {
@@ -520,6 +517,8 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
             });
         });
         teamMember.team_barrier();
+        *********************************************************/
+
     }); // Chunks lambda (thread league)
     Kokkos::fence();
 
