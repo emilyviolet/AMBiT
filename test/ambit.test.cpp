@@ -48,6 +48,11 @@ int main(int argc, char* argv[])
         NumProcessors = 1;
         ProcessorRank = 0;
     #endif
+
+#ifdef AMBIT_USE_KOKKOS
+    Kokkos::initialize(argc, argv);
+    {
+#endif
     
     OutStreams::InitialiseStreams();
     outstream = logstream;
@@ -56,6 +61,10 @@ int main(int argc, char* argv[])
     int ret = RUN_ALL_TESTS();
 
     OutStreams::FinaliseStreams();
+#ifdef AMBIT_USE_KOKKOS
+    } // Kokkos variables should all be freed after this point
+    Kokkos::finalize();
+#endif
 
     #ifdef AMBIT_USE_MPI
         MPI_Finalize();
