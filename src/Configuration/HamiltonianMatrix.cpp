@@ -324,6 +324,57 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                     size_t nproj_j = config_j->projection_size();
 
                     // Next level of Kokkos hierarchical parallelism: TeamThreadRange
+                    /****************************** EVK NOTE **************************
+                     * This part is non-trivial. We want to collapse the double-nested loops over
+                     * projections into a single, flat iteration space for better load-balancing.
+                     * When config_i != config_j, then we can just do a Kokkos 2D range and
+                     * everything is fine. 
+                     *
+                     * But if config_i == config_j then we need to do a
+                     * triangular iteration space since the angular momentum matrices are
+                     * symmetric about the diagonal, and this is non-trivial to flatten (Kokkos
+                     * actually can't do it automatically). The idea is that we want to re-map
+                     * the upper-triangular iteration bounds:
+                     *
+                     * i: 0 -> NProj
+                     * j: i -> NProj
+                     *
+                     * (which has NProj*(Nproj+1)/2 elements) from a triangle to a smaller
+                     * rectangle with the same number of elements. Here's a diagram of what this
+                     * looks like in practice for, say, 5, projections:
+                     *
+                     * (0,0), (0,1), (0,2), (0,3), (0,4)
+                     *        (1,1), (1,2), (1,3), (1,4)
+                     *               (2,2), (2,3), (2,4)
+                     *                      (3,3), (3,4)
+                     *                             (4,4)
+                     *
+                     *                  ||
+                     *                  ||
+                     *                  ||
+                     *                  \/
+                     * 
+                     * (0,0), (0,1), (0,2), (0,3), (0,4)
+                     * (4,4), (1,1), (1,2), (1,3), (1,4)
+                     * (3,4), (3,3)  (2,2), (2,3), (2,4)
+                     *
+                     * We've essentially taken the bottom-half of the triangle and flipped it to
+                     * make a rectangle. In pseudocode, this translates to:
+                     * for(n = 0; n < NProj*(NProj+1)/2; n++) {
+                     *   i = n/NProj;
+                     *   j = n%NProj;
+                     *
+                     *   if(i > j):
+                     *      i = NProj-i;
+                     *      j = NProj-j-1;
+                     *
+                     *  (Note that this is adapted from this Stack Overflow answer, but changed
+                     *  since we want the upper triangle+diagonal of the iteration space):
+                     *  https://stackoverflow.com/questions/33810187/openmp-and-c-private-variables/33836073#33836073
+                     *
+                     ****************************** EVK NOTE **************************/
+                    if (config_i != config_j)
+                    {
                     Kokkos::parallel_for(Kokkos::TeamThreadMDRange<Kokkos::Rank<2>, MemberType>
                                         (teamMember, nproj_i, nproj_j),
                                         [=](int proj_index_i, int proj_index_j)
@@ -354,9 +405,6 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                         {
                             operatorH = H_two_body->GetMatrixElement(proj_i, proj_j);
                         }
-
-                        if(config_j == config_i && proj_index_j != proj_index_i)
-                            operatorH *= 0.5;
 
                         if(fabs(operatorH) > 1.e-15)
                         {
@@ -413,6 +461,103 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                         } // if operatorH > 1e-15. Indenting has changed here so everything
                           // fits on screen
                     }); // Kokkos projections (TeamThreadMDRange)
+                    // Triangular loop when config_i == config_j
+                    } else {
+                    Kokkos::parallel_for(Kokkos::TeamThreadRange (teamMember, nproj_i*(nproj_i+1)/2),
+                                        [=](int n)
+                    {
+                        int proj_index_i = n/nproj_i;
+                        int proj_index_j = n%nproj_i;
+
+                        if(proj_index_i > proj_index_j)
+                        {
+                            proj_index_i = nproj_i - proj_index_i;
+                            proj_index_j = nproj_i - proj_index_j - 1;
+                        }
+                        auto projections_i = config_i->GetProjectionList();
+                        auto proj_i = projections_i[proj_index_i];
+
+                        // projections_j is a plain vector of projection objects which belong to
+                        // this configuration. It does not keep track of CSFs or other angular 
+                        // momentum bookkeeping stuff
+                        auto projections_j = config_j->GetProjectionList();
+
+                        // Note that the angular momentum matrices are symmetric so we only need
+                        // to calculate half the coefficients if config_i == config_j
+                        //
+                        // TODO EVK: is it possible to rewrite this so that we have square loop
+                        // bounds, but just divide by 2 for the appropriate elements to avoid
+                        // double-counting?
+                        auto proj_j = projections_j[proj_index_j];
+                        
+                        double operatorH;
+
+                        if(do_three_body)
+                        {
+                            operatorH = H_three_body->GetMatrixElement(proj_i, proj_j);
+                        }
+                        else
+                        {
+                            operatorH = H_two_body->GetMatrixElement(proj_i, proj_j);
+                        }
+
+                        if(fabs(operatorH) > 1.e-15)
+                        {
+
+                        // Now get some iterators of CSFs corresponding to this pair of
+                        // configurations and projections. This will be a random-access
+                        // iterator. The CSF coefficients are stored in the angular_data
+                        // pointer for each RelativisticConfiguration (config_i and config_j),
+                        // and are organised such that we call CSF_begin(i) to get the NumCSFs
+                        // CSFs corresponding to the i'th projection. Similarly, CSF_end(i)
+                        // will get the last CSF corresponding to the i'th projection
+                        // to calculate half the coefficients if proj_it == proj_jt. Also,
+                        // in this case config_j->NumCSFs() == config_i->NumCSFs()
+                        for(int ii = 0; ii < config_i->NumCSFs(); ii++)
+                        {
+                            auto coeff_i = config_i->GetAngularData()
+                                                   ->CSF_begin(proj_index_i) + ii;
+                            // Now do the same for the proj_j/config_j CSFs, with the caveat
+                            // that the angular momentum matrices are symmetric so we only need
+                            // to calculate half the coefficients if proj_it == proj_jt. Also,
+                            // in this case config_j->NumCSFs() == config_i->NumCSFs()
+                            auto start_CSF_j = 0;
+                            // TODO EVK: Verify that I'm using the correct definition to check
+                            // for equality between projections!
+                            if(proj_i == proj_j)
+                                start_CSF_j = ii;
+                            for(auto jj = start_CSF_j; jj < config_j->NumCSFs(); jj++)
+                            {
+                                auto coeff_j = config_j->GetAngularData()
+                                                       ->CSF_begin(proj_index_j) + jj;
+                                // Calculate indices and offsets here. Note that ii and jj only
+                                // give us the CSF row and column indices relative to this pair
+                                // of configs, so we need to add in an offset to get the
+                                // indices for *this chunk's* matrix slice. The config index is
+                                // relative to a global list of all relativistic configurations
+                                // involved in building the CI matrix, so the offsets will also
+                                // be global (i.e. relative to this config's position in the
+                                // big list o' configs)
+                                size_t csf_offset_i = csf_offsets[config_index_i];
+                                size_t csf_offset_j = csf_offsets[config_index_j];
+                                size_t chunk_row = ii + csf_offset_i;
+                                size_t chunk_col = jj + csf_offset_j;
+
+                                if(chunk_row > chunk_col)
+                                    M_view(chunk_row - current_chunk.start_row, chunk_col) += operatorH * (*coeff_i) * (*coeff_j);
+                                else if(chunk_row < chunk_col)
+                                    M_view(chunk_col - current_chunk.start_row, chunk_row) += operatorH * (*coeff_i) * (*coeff_j);
+                                else if(proj_i == proj_j)
+                                    M_view(chunk_row - current_chunk.start_row, chunk_col) += operatorH * (*coeff_i) * (*coeff_j);
+                                else
+                                    M_view(chunk_row - current_chunk.start_row, chunk_col) += 2. * operatorH * (*coeff_i) * (*coeff_j);
+                            } // CSF jj
+                        } // CSF ii
+                        } // if operatorH > 1e-15. Indenting has changed here so everything
+                          // fits on screen
+                    }); // Kokkos projections (TeamThreadMDRange)
+
+                    } // config_i == config_j
                 } // Check do_three_body
             } // config_index_j
 
@@ -429,16 +574,27 @@ void HamiltonianMatrix::GenerateMatrix(unsigned int configs_per_chunk)
                 auto projections_i = config_i->GetProjectionList();
                 size_t nproj_j = config_i->projection_size();
                 auto projections_j = config_i->GetProjectionList();
-                    // Next level of Kokkos hierarchical parallelism: TeamThreadRange
-                    Kokkos::parallel_for(Kokkos::TeamThreadMDRange<Kokkos::Rank<2>, MemberType>
-                                        (teamMember, nproj_i, nproj_j),
-                                        [=](int proj_index_i, int proj_index_j)
+
+                /********************** EVK NOTE *************************
+                 * See the discussion and ASCII art above for an explanation of how this indexing
+                 * scheme works. It's the same as the off-diagonal where config_i == config_j
+                 * (which is trivially true for the diagonal elements)
+                 ********************** EVK NOTE *************************/
+                Kokkos::parallel_for(Kokkos::TeamThreadRange (teamMember, nproj_i*(nproj_i+1)/2),
+                                        [=](int n)
                 {
+                    int proj_index_i = n/nproj_i;
+                    int proj_index_j = n%nproj_i;
+
+                    if(proj_index_i > proj_index_j)
+                    {
+                        proj_index_i = nproj_i - proj_index_i;
+                        proj_index_j = nproj_i - proj_index_j - 1;
+                    }
+                    // Next level of Kokkos hierarchical parallelism: TeamThreadRange
                     auto proj_i = projections_i[proj_index_i];
                     auto proj_j = projections_j[proj_index_j];
-
-                    // Divide everything by 2 to account for double-counting
-                    double operatorH = 0.5*H_two_body->GetMatrixElement(proj_i, proj_j);
+                    double operatorH = H_two_body->GetMatrixElement(proj_i, proj_j);
 
                     if(fabs(operatorH) > 1.e-15)
                     {
