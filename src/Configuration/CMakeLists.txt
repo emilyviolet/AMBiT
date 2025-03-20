@@ -25,9 +25,10 @@ if(USE_OPENMP)
 endif()
 
 if(USE_KOKKOS)
-  target_compile_definitions(ambit PRIVATE -DAMBIT_USE_KOKKOS)
+  target_compile_definitions(configuration PRIVATE -DAMBIT_USE_KOKKOS)
   find_package(Kokkos 4.2 REQUIRED CONFIG)
   target_link_libraries(configuration PUBLIC Kokkos::kokkos)
+  target_include_directories(configuration PRIVATE ${Kokkos_INCLDUE_DIRS})
 endif()
 
 target_link_libraries(configuration PUBLIC Eigen3::Eigen)

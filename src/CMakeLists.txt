@@ -84,6 +84,8 @@ if(USE_KOKKOS)
   target_compile_definitions(ambit PRIVATE -DAMBIT_USE_KOKKOS)
   find_package(Kokkos 4.2 REQUIRED CONFIG)
   target_link_libraries(ambit PUBLIC Kokkos::kokkos)
+  set(Kokkos_INCLUDE_DIRS ${Kokkos_ROOT}/include)
+  include_directories(${Kokkos_INCLUDE_DIRS})
 endif()
 
 # Now include the directories for the different ambit modules and link against the static libs
