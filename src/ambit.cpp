@@ -315,8 +315,7 @@ void AmbitInterface::EnergyCalculations()
     {
         user_input.SetRun(run);
         std::string id = identifier + "_" + itoa(run);
-        LatticeConfig lattice_config = specification.getLatticeConfig();
-        atoms.emplace_back(user_input, lattice_config, Z, id);      // This copies the user_input, so each atom has its own.
+        atoms.emplace_back(user_input, specification, Z, id);      // This copies the user_input, so each atom has its own.
     }
 
 #if 0

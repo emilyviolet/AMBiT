@@ -67,7 +67,7 @@ TEST(EJOperatorTester, LiTransitions)
     DebugOptions.LogHFIterations(true);
     E1.SetGauge(TransitionGauge::Length);
     double scale = 0.001;
-    pBSplineBasis splines = std::make_shared<BSplineBasis>(lattice, 40, 9, 40.);
+    pBSplineBasis splines = std::make_shared<BSplineBasis>(lattice, 40, 9, 40., 0.0, SplineType::Reno);
     pRPASolver rpa_solver = std::make_shared<RPASolver>(splines);
     pRPAOperator rpa = std::make_shared<RPAOperator>(pE1, basis_generator.GetClosedHFOperator(), basis_generator.GetHartreeY(), rpa_solver);
     rpa->SetScale(scale);

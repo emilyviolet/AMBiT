@@ -131,7 +131,10 @@ pRPAOperator TransitionCalculator::MakeRPA(pSpinorOperator external, pHFOperator
     Rmax = user_input("RPA/BSpline/Rmax", Rmax);
     double dR0 = user_input("RPA/BSpline/R0", 0.0);     // Use default
 
-    pBSplineBasis basis_maker = std::make_shared<BSplineBasis>(hf->GetLattice(), N, K, Rmax, dR0);
+    // TODO EVK: This uses the default SplineType (Reno), but should probably be upgraded to get
+    // this value from Specification. Would need to change the spec, since currently there's no
+    // RPA/BSpline/SplineType
+    pBSplineBasis basis_maker = std::make_shared<BSplineBasis>(hf->GetLattice(), N, K, Rmax, dR0, SplineType::Reno);
 
     bool use_negative_states = true;
     if(user_input.search("RPA/--no-negative-states"))

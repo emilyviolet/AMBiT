@@ -80,5 +80,7 @@ extern std::string itoa(int value, unsigned int base = 10);
 //#define fread fread_other_endian
 extern size_t fread_other_endian(void* ptr, size_t size, size_t count, FILE * fp);
 
+enum class SplineType : int {NotreDame, Reno, Vanderbilt};
+
 }
 #endif

@@ -5,6 +5,7 @@
 #include "Atom.h"
 #include "Basis/BasisGenerator.h"
 #include "Basis/BSplineBasis.h"
+#include "Basis/BasisConfig.h"
 #include "Universal/ExpLattice.h"
 #include "Universal/LatticeConfig.h"
 #include "MBPT/BruecknerDecorator.h"
@@ -12,8 +13,8 @@
 
 namespace Ambit
 {
-Atom::Atom(const MultirunOptions userInput, LatticeConfig lattice_config, unsigned int atomic_number, const std::string& atom_identifier):
-    user_input(userInput), lattice_config(std::move(lattice_config)), Z(atomic_number), identifier(atom_identifier)
+Atom::Atom(const MultirunOptions userInput, GlobalSpecification specification, unsigned int atomic_number, const std::string& atom_identifier):
+    user_input(userInput), specification(std::move(specification)), Z(atomic_number), identifier(atom_identifier)
 {}
 
 Atom::~Atom(void)
@@ -39,6 +40,7 @@ pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
         }
         else
         {   // Lattice parameters
+            LatticeConfig lattice_config = specification.getLatticeConfig();
             if (auto hconf = std::get_if<LatticeHybridConfig>(&lattice_config))
                 lattice = pLattice(new Lattice(*hconf));
             else
@@ -62,7 +64,9 @@ pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
         }
 
         // Relativistic Hartree-Fock
-        basis_generator = std::make_shared<BasisGenerator>(lattice, user_input);
+        // Basis options from input
+        BasisConfig basis_config = specification.getBasisConfig();
+        basis_generator = std::make_shared<BasisGenerator>(lattice, user_input, basis_config);
         open_core = basis_generator->GenerateHFCore(hf_open_core_start);
         hf_open = basis_generator->GetOpenHFOperator();
 
@@ -104,7 +108,9 @@ bool Atom::ReadBasis()
     lattice = modifiable_orbitals->GetLattice();
 
     // Generate HF operator
-    basis_generator = std::make_shared<BasisGenerator>(lattice, user_input);
+    // Basis options from input
+    BasisConfig basis_config = specification.getBasisConfig();
+    basis_generator = std::make_shared<BasisGenerator>(lattice, user_input, basis_config);
     hf_open = basis_generator->RecreateBasis(modifiable_orbitals);
 
     orbitals = modifiable_orbitals;

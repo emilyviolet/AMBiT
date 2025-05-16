@@ -11,6 +11,7 @@
 #include "Configuration/LevelMap.h"
 #include "HartreeFock/NucleusDecorator.h"
 #include "MBPT/Sigma3Calculator.h"
+#include "Specification/Specification.h"
 
 namespace Ambit
 {
@@ -22,7 +23,7 @@ class Sigma3Calculator;
 class Atom
 {
 public:
-    Atom(const MultirunOptions userInput, LatticeConfig lattice_config, unsigned int atomic_number, const std::string& atom_identifier);
+    Atom(const MultirunOptions userInput, GlobalSpecification specification, unsigned int atomic_number, const std::string& atom_identifier);
     ~Atom();
 
     /** Read existing basis or perform Hartree-Fock calculation
@@ -154,7 +155,8 @@ public:
 
 protected:
     MultirunOptions user_input;
-    LatticeConfig lattice_config;
+    GlobalSpecification specification;
+
 
     std::string identifier;
     double Z;         // Nuclear charge

@@ -6,6 +6,7 @@
 
 #include "Specification.h"
 #include "parapara/parapara.h"
+#include "Include.h"
 
 namespace P = parapara;
 
@@ -18,11 +19,100 @@ P::hopefully<void> custom_import_ini(Record& rec, const P::specification_set<Rec
 inline auto positive = P::greater_than(0, "must be positive");
 
 P::specification<GlobalSpecification> global_specifications[] = {
-    {"Lattice/NumPoints",     &GlobalSpecification::lattice_num_points,    P::nonzero()},
-    {"Lattice/StartPoint",    &GlobalSpecification::lattice_start_point,   positive},
-    {"Lattice/EndPoint",      &GlobalSpecification::lattice_end_point,     positive},
-    {"Lattice/--exp-lattice", &GlobalSpecification::lattice_exponential},
-    {"Lattice/H",             &GlobalSpecification::lattice_H,             positive}
+    // Ungrouped options
+    {"ID",                      &GlobalSpecification::ID, P::nonempty()},
+    {"Z",                       &GlobalSpecification::Z, positive},
+    {"NuclearInverseMass",      &GlobalSpecification::nuclear_inverse_mass},
+    {"NuclearRadius",           &GlobalSpecification::nuclear_radius},
+    {"NuclearThickness",        &GlobalSpecification::nuclear_thickness},
+    {"AlphaSquaredVariation",   &GlobalSpecification::alpha_squared_variation},
+    {"LevelDirectory",          &GlobalSpecification::level_directory},
+    {"-s1",                     &GlobalSpecification::s1},
+    {"-s2",                     &GlobalSpecification::s2},
+    {"-s3",                     &GlobalSpecification::s3},
+    {"--no-new-mbpt",           &GlobalSpecification::no_new_mbpt},
+    {"--check-sizes",           &GlobalSpecification::check_sizes},
+    {"-c",                      &GlobalSpecification::clean_run},
+    {"-p",                      &GlobalSpecification::print_basis},
+    {"--ci-complete",           &GlobalSpecification::ci_complete},
+    {"--no-ci",                 &GlobalSpecification::no_ci},
+    {"--configuration-average", &GlobalSpecification::configuration_average},
+    // Lattice
+    {"Lattice/NumPoints",           &GlobalSpecification::lattice_num_points,    P::nonzero()},
+    {"Lattice/StartPoint",          &GlobalSpecification::lattice_start_point,   positive},
+    {"Lattice/EndPoint",            &GlobalSpecification::lattice_end_point,     positive},
+    {"Lattice/--exp-lattice",       &GlobalSpecification::lattice_exponential},
+    {"Lattice/H",                   &GlobalSpecification::lattice_H,             positive},
+    // HF
+    {"HF/N",                            &GlobalSpecification::hf_N, positive},
+    {"HF/Configuration",                &GlobalSpecification::hf_configuration},
+    {"HF/--breit",                      &GlobalSpecification::hf_breit},
+    {"HF/--sms",                        &GlobalSpecification::hf_sms},
+    {"HF/--nms",                        &GlobalSpecification::hf_nms},
+    {"HF/--only-relativistic-nms",      &GlobalSpecification::hf_only_rel_nms},
+    {"HF/--nonrelativistic-mass-shift", &GlobalSpecification::hf_nonrel_mass_shift},
+    {"HF/--include-lower-mass",         &GlobalSpecification::hf_include_lower_mass},
+    {"HF/--local-exchange",             &GlobalSpecification::hf_local_exchange},
+    {"HF/Xalpha",                       &GlobalSpecification::hf_xalpha},
+    // HF/QED
+    {"HF/QED/--uehling",                &GlobalSpecification::hf_qed_uehling},
+    {"HF/QED/--self-energy",            &GlobalSpecification::hf_qed_self_energy},
+    {"HF/QED/--use-nuclear-density",    &GlobalSpecification::hf_qed_use_nuclear_density},
+    {"HF/QED/NuclearRMSRadius",         &GlobalSpecification::hf_qed_nuclear_rms_radius, P::nonzero()},
+    {"HF/QED/--no-magnetic",            &GlobalSpecification::hf_qed_no_magnetic},
+    {"HF/QED/--no-electric",            &GlobalSpecification::hf_qed_no_electric},
+    {"HF/QED/--skip-offmass",           &GlobalSpecification::hf_qed_skip_offmass},
+    {"HF/QED/--use-electron-screening", &GlobalSpecification::hf_qed_use_electron_screening},
+    // HF/Yukawa
+    {"HF/Yukawa/Mass",      &GlobalSpecification::hf_yukawa_mass},
+    {"HF/Yukawa/MassEV",    &GlobalSpecification::hf_yukawa_massev},
+    {"HF/Yukawa/Rc",        &GlobalSpecification::hf_yukawa_rc},
+    {"HF/Yukawa/Scale",     &GlobalSpecification::hf_yukawa_scale},
+    // HF/AddLocalPotential
+    {"HF/AddLocalPotential/Filename",   &GlobalSpecification::hf_addlocal_filename},
+    {"HF/AddLocalPotential/Scale",      &GlobalSpecification::hf_addlocal_scale},
+    // Basis
+    {"Basis/Valence",           &GlobalSpecification::basis_valence},
+    {"Basis/FrozenCore",        &GlobalSpecification::basis_frozen_core},
+    {"Basis/IncludeValence",    &GlobalSpecification::basis_include_valence},
+    {"Basis/ExcludeValence",    &GlobalSpecification::basis_exclude_valence},
+    {"Basis/Residue",           &GlobalSpecification::basis_residue},
+    {"Basis/InjectOrbitals",    &GlobalSpecification::basis_inject_orbitals},
+    {"Basis/--reorthogonalise", &GlobalSpecification::basis_reorthogonalise},
+    {"Basis/--hf-basis",        &GlobalSpecification::basis_hf},
+    {"Basis/--bspline-basis",   &GlobalSpecification::basis_bspline},
+    {"Basis/--xr-basis",        &GlobalSpecification::basis_xr},
+    {"Basis/HFOrbitals",        &GlobalSpecification::basis_hf_orbitals},
+    {"Basis/CustomOrbitals",    &GlobalSpecification::basis_custom_orbitals},
+    // Basis/BSpline
+    {"Basis/BSpline/Rmax",          &GlobalSpecification::basis_bspline_rmax},
+    {"Basis/BSpline/R0",            &GlobalSpecification::basis_bspline_r0},
+    {"Basis/BSpline/K",             &GlobalSpecification::basis_bspline_k},
+    {"Basis/BSpline/N",             &GlobalSpecification::basis_bspline_N},
+    {"Basis/BSpline/SplineType",    &GlobalSpecification::basis_bspline_splinetype},
+    // CI
+    {"CI/LeadingConfigurations",                &GlobalSpecification::ci_leading_configurations},
+    {"CI/LeadingRelativisticConfigurations",    &GlobalSpecification:: ci_leading_rel_configurations},
+    {"CI/ExtraConfigurations",                  &GlobalSpecification::ci_extra_configurations},
+    {"CI/ExtraRelativisticConfigurations",      &GlobalSpecification::ci_extra_rel_configurations},
+    {"CI/ElectronExcitations",                  &GlobalSpecification::ci_electron_excitations},
+    {"CI/HoleExcitations",                      &GlobalSpecification::ci_hole_excitations},
+    {"CI/EvenParityTwoJ",                       &GlobalSpecification::ci_even_parity_twoj},
+    {"CI/OddParityTwoJ",                        &GlobalSpecification::ci_odd_parity_twoj},
+    {"CI/NumSolutions",                         &GlobalSpecification::ci_num_solutions},
+    {"CI/--all-symmetries",                     &GlobalSpecification::ci_all_symmetries},
+    {"CI/--gfactors",                           &GlobalSpecification::ci_gfactors},
+    {"CI/--no-gfactors",                        &GlobalSpecification::ci_no_gfactors},
+    {"CI/--memory-saver",                       &GlobalSpecification::ci_memory_saver},
+    {"CI/--single-configuration-CI",            &GlobalSpecification::ci_single_configuration_ci},
+    {"CI/--print-configurations",               &GlobalSpecification::ci_print_configurations},
+    {"CI/--print-relativistic-configurations",  &GlobalSpecification:: ci_print_rel_configurations},
+    {"CI/--scalapack",                          &GlobalSpecification::ci_scalapack},
+    {"CI/MaxEnergy",                            &GlobalSpecification::ci_max_energy},
+    {"CI/ConfigurationAverageEnergyRange",      &GlobalSpecification::ci_configuration_average_energy_range},
+    {"CI/ChunkSize",                            &GlobalSpecification::ci_chunksize},
+    {"CI/--sort-matrix-by-configuration",       &GlobalSpecification::ci_sort_matrix_by_configuration}
+
 };
 
 P::specification_set<GlobalSpecification> global_specifications_dict(global_specifications, P::keys_lc_nows);
@@ -43,6 +133,42 @@ LatticeConfig GlobalSpecification::getLatticeConfig() const {
         if (lattice_start_point>0) config.start_point = lattice_start_point;
         if (lattice_end_point>0) config.end_point = lattice_end_point;
         return config;
+    }
+}
+
+BasisConfig GlobalSpecification::getBasisConfig() const {
+    if(basis_xr) {
+        XRBasisConfig config;
+        return(config);
+    } else if (basis_hf) {
+        HFBasisConfig config;
+        return(config);
+    } else {
+        BSplineBasisConfig config;
+        if(basis_bspline_rmax > 0) {
+            config.RMax = basis_bspline_rmax;
+        // If Basis/BSpline/RMax is unset, then it defaults to the value of Lattice/EndPoint,
+        // otherwise it defaults to 40.0;
+        } else if(lattice_end_point > 0) {
+            config.RMax = lattice_end_point;
+        } else {
+            config.RMax = 40.0;
+        }
+        config.R0 = basis_bspline_r0;
+        config.K = basis_bspline_k;
+        
+        // Finally, get the kind of spline to use. Convert eveything to lower case, since we don't
+        // really care about capitalisation here. Default to Reno type
+        std::string spline_type = basis_bspline_splinetype;
+        std::transform(spline_type.begin(), spline_type.end(), spline_type.begin(), ::toupper);
+        if(spline_type == "vanderbilt") {
+            config.spline_type = SplineType::Vanderbilt;
+        } else if (spline_type == "notredame") {
+            config.spline_type = SplineType::NotreDame;
+        } else {
+            config.spline_type = SplineType::Reno;
+        }
+        return(config);
     }
 }
 
@@ -68,6 +194,11 @@ std::string validateSpecification(const GlobalSpecification& gs) {
 
     if (gs.lattice_exponential && gs.lattice_end_point>0)
         return "Lattice/EndPoint is ignored if Lattice/--exp-lattice is set";
+
+    // Check for consistency in HF decorators (e.g. cannot request both nonrelativistic and
+    // relativistic-only constraints)
+    if (gs.hf_only_rel_nms && gs.hf_nonrel_mass_shift)
+        return "HF/--only-relativistic-nms and HF/--nonrelativistic-mass-shift cannot both be set at the same time";
 
     return "";
 }

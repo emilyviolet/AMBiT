@@ -3,7 +3,7 @@
 
 namespace Ambit
 {
-enum class SplineType {NotreDame, Reno, Vanderbilt};
+enum class SplineType : int;
 
 typedef Orbital BSpline;
 typedef pOrbital pBSpline;
@@ -16,14 +16,14 @@ typedef pOrbital pBSpline;
 class BSplineBasis
 {
 public:
-    BSplineBasis(pLattice lattice, int n, int k, double rmax, double dr0 = 0.0, SplineType method = SplineType::Reno):
+    BSplineBasis(pLattice lattice, int n, int k, double rmax, double dr0, SplineType method):
         lattice(lattice)
     {   SetParameters(n, k, rmax, dr0, method);
     }
     virtual ~BSplineBasis() {}
 
-    void SetParameters(int n, int k, double rmax, SplineType method = SplineType::Reno);
-    void SetParameters(int n, int k, double rmax, double dr0, SplineType method = SplineType::Reno);
+    void SetParameters(int n, int k, double rmax, SplineType method);
+    void SetParameters(int n, int k, double rmax, double dr0, SplineType method);
 
     /** Generate B-splines from core states up to max_pqn. */
     pOrbitalMap GenerateBSplines(pHFOperatorConst hf, int kappa, int max_pqn);

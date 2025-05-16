@@ -5,6 +5,7 @@
 #include "HartreeFock/HFOperator.h"
 #include "Basis/BSplineBasis.h"
 #include "RPAOrbital.h"
+#include "Include.h"
 
 namespace Ambit
 {
@@ -24,7 +25,8 @@ public:
     RPASolver(pLattice lattice, double rmax = 50., bool include_negative_basis = true):
         include_dirac_sea(include_negative_basis), hf0(nullptr)
     {
-        basis_maker = std::make_shared<BSplineBasis>(lattice, 40, 7, rmax);
+        // Instantiate BSplineBasis with the default arguments
+        basis_maker = std::make_shared<BSplineBasis>(lattice, 40, 7, rmax, 0.0, Ambit::SplineType::Reno);
     }
     RPASolver(pCoreConst core, bool include_negative_basis = true):
         RPASolver(core->GetLattice(), core->GetLattice()->R(core->LargestOrbitalSize()), include_negative_basis)

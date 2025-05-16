@@ -1,4 +1,5 @@
 #include "BasisGenerator.h"
+#include "Basis/BasisConfig.h"
 #include "Include.h"
 #include "HartreeFock/ConfigurationParser.h"
 #include "HartreeFock/Integrator.h"
@@ -14,8 +15,8 @@
 
 namespace Ambit
 {
-BasisGenerator::BasisGenerator(pLattice lat, MultirunOptions& userInput, pPhysicalConstant physical_constant):
-    lattice(lat), user_input(userInput), physical_constant(physical_constant), open_core(nullptr)
+BasisGenerator::BasisGenerator(pLattice lat, MultirunOptions& userInput, BasisConfig basis_config, pPhysicalConstant physical_constant):
+    lattice(lat), user_input(userInput), physical_constant(physical_constant), basis_config(std::move(basis_config)), open_core(nullptr)
 {
     orbitals = pOrbitalManager(new OrbitalManager(lattice));
 }

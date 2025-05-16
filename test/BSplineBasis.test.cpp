@@ -32,10 +32,11 @@ TEST(BSplineBasisTester, Rb)
     int num_splines = 40;
     int k = 7;
     double rmax = 50.0;
+    double dR0 = 0.0;
 
     int kappa = 2;
     pHFOperator hf = basis_generator.GetOpenHFOperator();
-    BSplineBasis basis(lattice, num_splines, k, rmax);
+    BSplineBasis basis(lattice, num_splines, k, rmax, dR0, SplineType::Reno);
     pOrbitalMap excited = basis.GenerateBSplines(hf, kappa, 10);
     pOrbital s = excited->GetState(OrbitalInfo(3, kappa));
     EXPECT_NEAR(-4.87967974917, s->Energy(), 4.e-6);
