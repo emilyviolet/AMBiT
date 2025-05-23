@@ -1,5 +1,4 @@
 #include "BasisGenerator.h"
-#include "Basis/BasisConfig.h"
 #include "Include.h"
 #include "HartreeFock/ConfigurationParser.h"
 #include "HartreeFock/Integrator.h"
@@ -15,8 +14,11 @@
 
 namespace Ambit
 {
-BasisGenerator::BasisGenerator(pLattice lat, MultirunOptions& userInput, BasisConfig basis_config, pPhysicalConstant physical_constant):
-    lattice(lat), user_input(userInput), physical_constant(physical_constant), basis_config(std::move(basis_config)), open_core(nullptr)
+BasisGenerator::BasisGenerator(pLattice lat, MultirunOptions& userInput, BasisConfig basis_config, HFConfig hf_config, pPhysicalConstant physical_constant):
+    lattice(lat), user_input(userInput), physical_constant(physical_constant), 
+    basis_config(std::move(basis_config)), 
+    hf_config(std::move(hf_config)),
+    open_core(nullptr)
 {
     orbitals = pOrbitalManager(new OrbitalManager(lattice));
 }
@@ -26,17 +28,26 @@ BasisGenerator::~BasisGenerator()
 
 void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
 {
-    unsigned int Z = user_input("Z", 0);
+    unsigned int Z = hf_config.Z;
 
-    int Charge = user_input("HF/Charge", -1);
-    if(Charge < 0)
-    {   int N = user_input("HF/N", -1);
+    // HF/Charge may or may not be present in the input file, so either grab the value if it
+    // exists, or calculate it based on the electronic parameters
+    int Charge;
+    if(hf_config.charge)
+    {
+        Charge = hf_config.charge.value();
+    } else 
+    {   int N = hf_config.N;
         if(Z >= N && N >= 0)
+        {
             Charge = Z - N;
+        } else {
+            Charge = 0;
+        }
     }
 
     //TODO: Error message if Charge or N is missing or incorrect.
-    std::string config(user_input("HF/Configuration", ""));
+    std::string config = hf_config.configuration;
 
     // Get orbitals and occupancies
     std::string open_shell_string;
@@ -68,7 +79,7 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
     if(physical_constant == nullptr)
     {
         physical_constant = pPhysicalConstant(new PhysicalConstant());
-        double alpha_variation = user_input("AlphaSquaredVariation", 0.0);
+        double alpha_variation = hf_config.alpha_squared_variation;
         if(alpha_variation)
             physical_constant->SetAlphaSquaredIncreaseRatio(alpha_variation);
     }
@@ -77,11 +88,11 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
     hf = undressed_hf;
 
     // Add nuclear potential
-    double nuclear_radius = user_input("NuclearRadius", 0.0);
+    double nuclear_radius = hf_config.nuclear_radius;
     if(nuclear_radius)
     {
         nucleus = std::make_shared<NucleusDecorator>(hf, coulomb, integrator);
-        double nuclear_thickness = user_input("NuclearThickness", 2.3);
+        double nuclear_thickness = hf_config.nuclear_thickness;
         nucleus->SetFermiParameters(nuclear_radius, nuclear_thickness);
         nucleus->SetCore(open_core);
         *outstream << "Nuclear RMS radius = " << nucleus->CalculateNuclearRMSRadius() << std::endl;
@@ -93,14 +104,14 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
     hartreeY = pHartreeY(new HartreeY(integrator, coulomb));
 
     // Add additional operators
-    double NuclearInverseMass = user_input("NuclearInverseMass", 0.0);
+    double NuclearInverseMass = hf_config.nuclear_inverse_mass;
     if(NuclearInverseMass)
     {
-        bool do_nms = user_input.search("HF/--nms");
-        bool do_sms = user_input.search("HF/--sms");
-        bool nonrel_ms = user_input.search("HF/--nonrelativistic-mass-shift");
-        bool relativistic_nms = user_input.search("HF/--only-relativistic-nms");
-        bool lower_sms = user_input.search("HF/--include-lower-sms");
+        bool do_nms = hf_config.nms;
+        bool do_sms = hf_config.sms;
+        bool nonrel_ms = hf_config.nonrel_mass_shift;
+        bool relativistic_nms = hf_config.only_rel_nms;
+        bool lower_sms = hf_config.include_lower_mass;
 
         // Default: do specific mass shift
         if(!do_nms && !do_sms && !relativistic_nms)
@@ -139,7 +150,7 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
         }
     }
 
-    if(user_input.search("HF/--breit"))
+    if(hf_config.breit)
     {
         pHartreeY breit = std::make_shared<BreitZero>(std::make_shared<HartreeYBase>(), integrator, coulomb);
         pHFOperator breit_hf = std::make_shared<BreitHFDecorator>(hf, breit);
@@ -273,6 +284,7 @@ void BasisGenerator::SetOrbitalMaps()
     OrbitalMap& hole = *orbitals->hole;
 
     std::string deep_states = user_input("Basis/FrozenCore", "");
+    //std::string deep_states = basis_config.frozen_core;
     if(deep_states.length())
     {
         std::vector<int> max_deep_pqns = ConfigurationParser::ParseBasisSize(deep_states);
