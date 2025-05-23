@@ -1,3 +1,4 @@
+#include "HartreeFock/HFConfig.h"
 #ifdef AMBIT_USE_MPI
 #include <mpi.h>
 #endif
@@ -28,11 +29,13 @@ pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
 
     if((ProcessorRank == 0) && (!use_read || !ReadBasis()))
     {
+        /*
         int N = user_input("HF/N", -1);  // Number of electrons
         if(N == -1 || N > Z)
         {   *errstream << "Must specify N (number of electrons) with Z >= N" << std::endl;
             exit(1);
         }
+        */
 
         if(user_input.search("HF/--read-grasp0"))
         {   // Read lattice and core and basis orbitals
@@ -66,7 +69,8 @@ pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
         // Relativistic Hartree-Fock
         // Basis options from input
         BasisConfig basis_config = specification.getBasisConfig();
-        basis_generator = std::make_shared<BasisGenerator>(lattice, user_input, basis_config);
+        HFConfig hf_config = specification.getHFConfig();
+        basis_generator = std::make_shared<BasisGenerator>(lattice, user_input, basis_config, hf_config);
         open_core = basis_generator->GenerateHFCore(hf_open_core_start);
         hf_open = basis_generator->GetOpenHFOperator();
 
@@ -108,9 +112,10 @@ bool Atom::ReadBasis()
     lattice = modifiable_orbitals->GetLattice();
 
     // Generate HF operator
-    // Basis options from input
+    // Basis and HF options from input
     BasisConfig basis_config = specification.getBasisConfig();
-    basis_generator = std::make_shared<BasisGenerator>(lattice, user_input, basis_config);
+    HFConfig hf_config = specification.getHFConfig();
+    basis_generator = std::make_shared<BasisGenerator>(lattice, user_input, basis_config, hf_config);
     hf_open = basis_generator->RecreateBasis(modifiable_orbitals);
 
     orbitals = modifiable_orbitals;

@@ -4,8 +4,10 @@
 #include <string>
 #include <vector>
 #include <variant>
+#include <optional>
 
 #include "Basis/BasisConfig.h"
+#include "HartreeFock/HFConfig.h"
 #include "Universal/LatticeConfig.h"
 
 namespace Ambit
@@ -20,10 +22,6 @@ struct GlobalSpecification {
     // Ungrouped options
     std::string ID;
     unsigned Z = 0;
-    double nuclear_inverse_mass = 0;
-    double nuclear_radius = 0;
-    double nuclear_thickness = 0;
-    double alpha_squared_variation = 0;
     std::string level_directory;
     bool s1 = false;
     bool s2 = false;
@@ -42,7 +40,8 @@ struct GlobalSpecification {
     bool lattice_exponential = false;
     double lattice_H = 0.05;
     // HF
-    unsigned hf_N = 0;
+    std::optional<unsigned> hf_N;
+    std::optional<int> hf_charge;
     std::string hf_configuration;
     bool hf_breit = false;
     bool hf_sms = false;
@@ -52,6 +51,12 @@ struct GlobalSpecification {
     bool hf_include_lower_mass = false;
     bool hf_local_exchange = false;
     double hf_xalpha = 1.0;
+    // NOTE: Moving AlphaSquared into HF specification since that's where it's used
+    double hf_alpha_squared_variation = 0;
+    // Also moving nuclear parameters
+    double hf_nuclear_inverse_mass = 0;
+    double hf_nuclear_radius = 0;
+    double hf_nuclear_thickness = 0;
     // HF/QED
     bool hf_qed_uehling = false;
     bool hf_qed_self_energy = false;
@@ -61,6 +66,9 @@ struct GlobalSpecification {
     bool hf_qed_no_electric = false;
     bool hf_qed_skip_offmass = false;
     bool hf_qed_use_electron_screening = false;
+    // HF/NuclearPolarisability
+    bool hf_nuclear_polarisability_alpha_e = false;
+    bool hf_nuclear_polarisability_ebar_mev = false;
     // HF/Yukawa
     double hf_yukawa_mass = 1.0;
     double hf_yukawa_massev = 1.0;
@@ -95,11 +103,12 @@ struct GlobalSpecification {
     std::string ci_extra_rel_configurations;
     // TODO EVK: This is really annoying, because the spec says that it can be *either* an integer
     // (e.g. CI/ElectronExcitations=2) or a string (e.g. ElectronExcitations = '1,5spdf,2,5spd')
-    // and this is really annoying to deal with. Maybe a std::variant is fine, though
-    std::variant<unsigned, std::string> ci_electron_excitations;
+    // and this is really annoying to deal with
+    unsigned ci_electron_excitations;
+    std::optional<std::vector<std::string>> ci_excitation_bounds;
     unsigned ci_hole_excitations = 0;
-    std::vector<std::string> ci_even_parity_twoj;
-    std::vector<std::string> ci_odd_parity_twoj;
+    std::vector<unsigned> ci_even_parity_twoj;
+    std::vector<unsigned> ci_odd_parity_twoj;
     unsigned ci_num_solutions = 6;
     bool ci_all_symmetries = false;
     bool ci_gfactors = false;
@@ -123,7 +132,8 @@ struct GlobalSpecification {
     bool ci_output_print_relativistic_configurations = false;
     // CI/SmallSide
     std::string ci_smallside_leading_configurations;
-    std::variant<unsigned, std::string> ci_smallside_electron_excitations;
+    unsigned ci_smallside_electron_excitations;
+    std::optional<std::vector<std::string>> ci_smallside_excitation_bounds;
     unsigned ci_smallside_hole_excitations = 0;
     bool ci_smallside_print_configurations = false;
     bool ci_smallside_print_rel_configurations = false;
@@ -153,6 +163,7 @@ struct GlobalSpecification {
 
     LatticeConfig getLatticeConfig() const;
     BasisConfig getBasisConfig() const;
+    HFConfig getHFConfig() const;
 };
 
 // On success, return empty string.

@@ -189,6 +189,12 @@ int main(int argc, char* argv[])
             }
         }
 
+        // Validate the spec
+        perr = validateSpecification(specification);
+        if (!perr.empty()) {
+            *errstream << "validateSpecification:\n" << perr << std::endl;
+            exit(1);
+        }
         // Identifier
         std::string identifier = fileInput("ID", "");
         if(identifier == "")

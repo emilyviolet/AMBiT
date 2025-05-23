@@ -30,17 +30,16 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
 {
     unsigned int Z = hf_config.Z;
 
-    // HF/Charge may or may not be present in the input file, so either grab the value if it
-    // exists, or calculate it based on the electronic parameters
+    // HF/Charge and HF/N may or may not be present in the input file, so either grab the value if
+    // it exists, or calculate it based on the electronic parameters
     int Charge;
     if(hf_config.charge)
     {
         Charge = hf_config.charge.value();
     } else 
-    {   int N = hf_config.N;
-        if(Z >= N && N >= 0)
+    {   if(hf_config.N && Z >= hf_config.N.value())
         {
-            Charge = Z - N;
+            Charge = Z - hf_config.N.value();
         } else {
             Charge = 0;
         }

@@ -22,10 +22,6 @@ P::specification<GlobalSpecification> global_specifications[] = {
     // Ungrouped options
     {"ID",                      &GlobalSpecification::ID, P::nonempty()},
     {"Z",                       &GlobalSpecification::Z, positive},
-    {"NuclearInverseMass",      &GlobalSpecification::nuclear_inverse_mass},
-    {"NuclearRadius",           &GlobalSpecification::nuclear_radius},
-    {"NuclearThickness",        &GlobalSpecification::nuclear_thickness},
-    {"AlphaSquaredVariation",   &GlobalSpecification::alpha_squared_variation},
     {"LevelDirectory",          &GlobalSpecification::level_directory},
     {"-s1",                     &GlobalSpecification::s1},
     {"-s2",                     &GlobalSpecification::s2},
@@ -45,6 +41,7 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"Lattice/H",                   &GlobalSpecification::lattice_H,             positive},
     // HF
     {"HF/N",                            &GlobalSpecification::hf_N, positive},
+    {"HF/Charge",                       &GlobalSpecification::hf_charge},
     {"HF/Configuration",                &GlobalSpecification::hf_configuration},
     {"HF/--breit",                      &GlobalSpecification::hf_breit},
     {"HF/--sms",                        &GlobalSpecification::hf_sms},
@@ -54,6 +51,10 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"HF/--include-lower-mass",         &GlobalSpecification::hf_include_lower_mass},
     {"HF/--local-exchange",             &GlobalSpecification::hf_local_exchange},
     {"HF/Xalpha",                       &GlobalSpecification::hf_xalpha},
+    {"HF/AlphaSquaredVariation",        &GlobalSpecification::hf_alpha_squared_variation},
+    {"HF/NuclearInverseMass",           &GlobalSpecification::hf_nuclear_inverse_mass},
+    {"HF/NuclearRadius",                &GlobalSpecification::hf_nuclear_radius},
+    {"HF/NuclearThickness",             &GlobalSpecification::hf_nuclear_thickness},
     // HF/QED
     {"HF/QED/--uehling",                &GlobalSpecification::hf_qed_uehling},
     {"HF/QED/--self-energy",            &GlobalSpecification::hf_qed_self_energy},
@@ -63,6 +64,9 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"HF/QED/--no-electric",            &GlobalSpecification::hf_qed_no_electric},
     {"HF/QED/--skip-offmass",           &GlobalSpecification::hf_qed_skip_offmass},
     {"HF/QED/--use-electron-screening", &GlobalSpecification::hf_qed_use_electron_screening},
+    // HF/NuclearPolarisability
+    {"HF/NuclearPolarisability/AlphaE",     &GlobalSpecification::hf_nuclear_polarisability_alpha_e},
+    {"HF/NuclearPolarisability/EbarMeV",    &GlobalSpecification::hf_nuclear_polarisability_ebar_mev},
     // HF/Yukawa
     {"HF/Yukawa/Mass",      &GlobalSpecification::hf_yukawa_mass},
     {"HF/Yukawa/MassEV",    &GlobalSpecification::hf_yukawa_massev},
@@ -96,6 +100,7 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"CI/ExtraConfigurations",                  &GlobalSpecification::ci_extra_configurations},
     {"CI/ExtraRelativisticConfigurations",      &GlobalSpecification::ci_extra_rel_configurations},
     {"CI/ElectronExcitations",                  &GlobalSpecification::ci_electron_excitations},
+    {"CI/ExcitationBounds",                     &GlobalSpecification::ci_excitation_bounds},
     {"CI/HoleExcitations",                      &GlobalSpecification::ci_hole_excitations},
     {"CI/EvenParityTwoJ",                       &GlobalSpecification::ci_even_parity_twoj},
     {"CI/OddParityTwoJ",                        &GlobalSpecification::ci_odd_parity_twoj},
@@ -139,9 +144,26 @@ LatticeConfig GlobalSpecification::getLatticeConfig() const {
 BasisConfig GlobalSpecification::getBasisConfig() const {
     if(basis_xr) {
         XRBasisConfig config;
+        config.frozen_core = basis_frozen_core;
+        config.valence_basis = basis_valence;
+        config.include_valence = basis_include_valence;
+        config.exclude_valence = basis_exclude_valence;
+        config.residue = basis_residue;
+        config.inject_orbitals = basis_inject_orbitals;
+        config.hf_orbitals = basis_hf_orbitals;
+        config.custom_orbitals = basis_custom_orbitals;
+
         return(config);
     } else if (basis_hf) {
         HFBasisConfig config;
+        config.frozen_core = basis_frozen_core;
+        config.valence_basis = basis_valence;
+        config.include_valence = basis_include_valence;
+        config.exclude_valence = basis_exclude_valence;
+        config.residue = basis_residue;
+        config.inject_orbitals = basis_inject_orbitals;
+        config.hf_orbitals = basis_hf_orbitals;
+
         return(config);
     } else {
         BSplineBasisConfig config;
@@ -168,8 +190,40 @@ BasisConfig GlobalSpecification::getBasisConfig() const {
         } else {
             config.spline_type = SplineType::Reno;
         }
+        config.frozen_core = basis_frozen_core;
+        config.valence_basis = basis_valence;
+        config.include_valence = basis_include_valence;
+        config.exclude_valence = basis_exclude_valence;
+        config.residue = basis_residue;
+        config.inject_orbitals = basis_inject_orbitals;
+        config.hf_orbitals = basis_hf_orbitals;
+
         return(config);
     }
+}
+
+HFConfig GlobalSpecification::getHFConfig() const {
+    HFConfig config;
+
+    // TODO: Need some options to go through all the different possible decorators here
+    config.Z = Z;
+    config.charge = hf_charge;
+    config.N = hf_N;
+    config.configuration = hf_configuration;
+    config.breit = hf_breit;
+    config.sms = hf_sms;
+    config.nms = hf_nms;
+    config.only_rel_nms = hf_only_rel_nms;
+    config.nonrel_mass_shift = hf_nonrel_mass_shift;
+    config.include_lower_mass = hf_include_lower_mass;
+    config.local_exchange = hf_local_exchange;
+    config.xalpha = hf_xalpha;
+    config.alpha_squared_variation = hf_alpha_squared_variation;
+    config.nuclear_thickness = hf_nuclear_thickness;
+    config.nuclear_radius = hf_nuclear_radius;
+    config.nuclear_inverse_mass = hf_nuclear_inverse_mass;
+
+    return(config);
 }
 
 std::string importSpecificationFile(GlobalSpecification& gs, const std::string& fileName) {
@@ -199,6 +253,9 @@ std::string validateSpecification(const GlobalSpecification& gs) {
     // relativistic-only constraints)
     if (gs.hf_only_rel_nms && gs.hf_nonrel_mass_shift)
         return "HF/--only-relativistic-nms and HF/--nonrelativistic-mass-shift cannot both be set at the same time";
+    // Must have at least one of HF/N and HF/Charge, so error out if these are missing
+    if((!gs.hf_charge) && (!gs.hf_N))
+        return "Must specify at least one of HF/N or HF/Charge";
 
     return "";
 }

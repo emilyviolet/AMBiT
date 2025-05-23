@@ -3,6 +3,7 @@
 
 #include "Atom/MultirunOptions.h"
 #include "Basis/BasisConfig.h"
+#include "HartreeFock/HFConfig.h"
 #include "HartreeFock/Orbital.h"
 #include "HartreeFock/HFOperator.h"
 #include "HartreeFock/NucleusDecorator.h"
@@ -21,7 +22,7 @@ namespace Ambit
 class BasisGenerator
 {
 public:
-    BasisGenerator(pLattice lat, MultirunOptions& userInput, BasisConfig basis_config, pPhysicalConstant physical_constant = nullptr);
+    BasisGenerator(pLattice lat, MultirunOptions& userInput, BasisConfig basis_config, HFConfig hf_config, pPhysicalConstant physical_constant = nullptr);
     virtual ~BasisGenerator();
 
     /** Generate core orbitals. If open_shell_core is supplied, then use this as a starting approximation.
@@ -142,6 +143,7 @@ protected:
     pLattice lattice;
     MultirunOptions& user_input;
     BasisConfig basis_config;
+    HFConfig hf_config;
     pPhysicalConstant physical_constant;
 
     pCore open_core;
