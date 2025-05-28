@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "Specification.h"
+#include "HartreeFock/HFConfig.h"
 #include "parapara/parapara.h"
 #include "Include.h"
 
@@ -56,6 +57,7 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"HF/NuclearRadius",                &GlobalSpecification::hf_nuclear_radius},
     {"HF/NuclearThickness",             &GlobalSpecification::hf_nuclear_thickness},
     // HF/QED
+    {"HF/QED",                          &GlobalSpecification::hf_do_qed},
     {"HF/QED/--uehling",                &GlobalSpecification::hf_qed_uehling},
     {"HF/QED/--self-energy",            &GlobalSpecification::hf_qed_self_energy},
     {"HF/QED/--use-nuclear-density",    &GlobalSpecification::hf_qed_use_nuclear_density},
@@ -68,11 +70,13 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"HF/NuclearPolarisability/AlphaE",     &GlobalSpecification::hf_nuclear_polarisability_alpha_e},
     {"HF/NuclearPolarisability/EbarMeV",    &GlobalSpecification::hf_nuclear_polarisability_ebar_mev},
     // HF/Yukawa
+    {"HF/Yukawa",           &GlobalSpecification::hf_do_yukawa},
     {"HF/Yukawa/Mass",      &GlobalSpecification::hf_yukawa_mass},
     {"HF/Yukawa/MassEV",    &GlobalSpecification::hf_yukawa_massev},
     {"HF/Yukawa/Rc",        &GlobalSpecification::hf_yukawa_rc},
     {"HF/Yukawa/Scale",     &GlobalSpecification::hf_yukawa_scale},
     // HF/AddLocalPotential
+    {"HF/AddLocalPotential",            &GlobalSpecification::hf_do_local_potential},
     {"HF/AddLocalPotential/Filename",   &GlobalSpecification::hf_addlocal_filename},
     {"HF/AddLocalPotential/Scale",      &GlobalSpecification::hf_addlocal_scale},
     // Basis
@@ -223,6 +227,42 @@ HFConfig GlobalSpecification::getHFConfig() const {
     config.nuclear_radius = hf_nuclear_radius;
     config.nuclear_inverse_mass = hf_nuclear_inverse_mass;
 
+    // Only populate the QED spec if we need to, otherwise leave this optional blank
+    //bool do_qed = hf_qed_uehling || hf_qed_self_energy;
+    if(hf_do_qed)
+    {
+        std::cout << "Doing QED..." << std::endl;
+        config.qed_config = QEDConfig{0};
+        config.qed_config->uehling = hf_qed_uehling;
+        config.qed_config->self_energy = hf_qed_self_energy;
+        config.qed_config->use_nuclear_density = hf_qed_use_nuclear_density;
+        config.qed_config->nuclear_rms_radius = hf_qed_nuclear_rms_radius;
+        config.qed_config->no_magnetic = hf_qed_no_magnetic;
+        config.qed_config->no_electric = hf_qed_no_electric;
+        config.qed_config->skip_offmass = hf_qed_skip_offmass;
+        config.qed_config->use_electron_screening = hf_qed_use_electron_screening;
+    }
+
+    if(hf_do_yukawa)
+    {
+        std::cout << "Doing Yukawa..." << std::endl;
+        config.yukawa_config = YukawaConfig{0};
+        config.yukawa_config->mass = hf_yukawa_mass;
+        config.yukawa_config->massEV = hf_yukawa_massev;
+        config.yukawa_config->rc = hf_yukawa_rc;
+        config.yukawa_config->scale = hf_yukawa_scale;
+    }
+
+    if(hf_do_local_potential)
+    {
+        std::cout << "Doing local potential..." << std::endl;
+        config.local_potential_config = LocalPotentialConfig{0};
+        config.local_potential_config->filename = hf_addlocal_filename;
+        config.local_potential_config->scale = hf_addlocal_scale;
+    }
+
+    std::exit(-1);
+
     return(config);
 }
 
@@ -256,7 +296,25 @@ std::string validateSpecification(const GlobalSpecification& gs) {
     // Must have at least one of HF/N and HF/Charge, so error out if these are missing
     if((!gs.hf_charge) && (!gs.hf_N))
         return "Must specify at least one of HF/N or HF/Charge";
+    
+    // Yukawa interaction has three possible parameters to determine its mass: Mass, MassEV and
+    // rc, which are logically equivalent but differ in units. The input file can
+    // have at most one of these defined; if none are defined then it defaults to Mass = 1.
+    //
+    // Count the number of parameters which are set. There's only three so a dumb solution is
+    // okay
+    unsigned count = 0;
+    if(gs.hf_yukawa_mass)
+        count++;
+    if(gs.hf_yukawa_massev)
+        count++;
+    if(gs.hf_yukawa_rc)
+        count++;
 
+    if(count > 1)
+        return "Must specify at most one of HF/Yukawa/Mass, HF/Yukawa/MassEV, or HF/Yukawa/Rc";
+
+    // Oll Korrect
     return "";
 }
 

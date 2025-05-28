@@ -58,10 +58,11 @@ struct GlobalSpecification {
     double hf_nuclear_radius = 0;
     double hf_nuclear_thickness = 0;
     // HF/QED
+    bool hf_do_qed = false; // Checks if the [HF/QED] section is defined
     bool hf_qed_uehling = false;
     bool hf_qed_self_energy = false;
     bool hf_qed_use_nuclear_density = false;
-    double hf_qed_nuclear_rms_radius = 0;
+    std::optional<double> hf_qed_nuclear_rms_radius;
     bool hf_qed_no_magnetic = false;
     bool hf_qed_no_electric = false;
     bool hf_qed_skip_offmass = false;
@@ -70,11 +71,13 @@ struct GlobalSpecification {
     bool hf_nuclear_polarisability_alpha_e = false;
     bool hf_nuclear_polarisability_ebar_mev = false;
     // HF/Yukawa
-    double hf_yukawa_mass = 1.0;
-    double hf_yukawa_massev = 1.0;
-    double hf_yukawa_rc = 1.0;
+    bool hf_do_yukawa = false;
+    std::optional<double> hf_yukawa_mass;
+    std::optional<double> hf_yukawa_massev;
+    std::optional<double> hf_yukawa_rc;
     double hf_yukawa_scale = 1.0;
     // HF/AddLocalPotential
+    bool hf_do_local_potential = false;
     std::string hf_addlocal_filename;
     double hf_addlocal_scale = 1.0;
     // Basis
