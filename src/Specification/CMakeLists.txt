@@ -3,6 +3,7 @@ set(MODS_SPECIFICATION Specification.cpp
 
 add_library(specification "${MODS_SPECIFICATION}")
 
+target_link_libraries(specification PUBLIC absl::flat_hash_map)
 # Set the internal MPI and OpenMP #ifdefs for this library
 if(USE_MPI)
   target_compile_definitions(specification PRIVATE -DAMBIT_USE_MPI)

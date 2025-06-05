@@ -67,6 +67,7 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"HF/QED/--skip-offmass",           &GlobalSpecification::hf_qed_skip_offmass},
     {"HF/QED/--use-electron-screening", &GlobalSpecification::hf_qed_use_electron_screening},
     // HF/NuclearPolarisability
+    {"HF/NuclearPolarisability",     &GlobalSpecification::hf_do_nuclear_polarisability},
     {"HF/NuclearPolarisability/AlphaE",     &GlobalSpecification::hf_nuclear_polarisability_alpha_e},
     {"HF/NuclearPolarisability/EbarMeV",    &GlobalSpecification::hf_nuclear_polarisability_ebar_mev},
     // HF/Yukawa
@@ -261,7 +262,13 @@ HFConfig GlobalSpecification::getHFConfig() const {
         config.local_potential_config->scale = hf_addlocal_scale;
     }
 
-    std::exit(-1);
+    if(hf_do_nuclear_polarisability)
+    {
+        std::cout << "Doing nuclear polarisability..." << std::endl;
+        config.nuclear_polarisability_config = NuclearPolarisabilityConfig{0};
+        config.nuclear_polarisability_config->alphaE = hf_nuclear_polarisability_alpha_e;
+        config.nuclear_polarisability_config->ebarMeV = hf_nuclear_polarisability_ebar_mev;
+    }
 
     return(config);
 }

@@ -27,6 +27,11 @@ struct YukawaConfig {
     double scale;
 };
 
+struct NuclearPolarisabilityConfig {
+   double alphaE;
+   double ebarMeV;
+};
+
 struct LocalPotentialConfig {
     std::string filename;
     double scale;
@@ -54,6 +59,7 @@ public:
     std::optional<QEDConfig> qed_config;
     std::optional<YukawaConfig> yukawa_config;
     std::optional<LocalPotentialConfig> local_potential_config;
+    std::optional<NuclearPolarisabilityConfig> nuclear_polarisability_config;
 };
 
 

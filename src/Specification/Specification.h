@@ -68,8 +68,9 @@ struct GlobalSpecification {
     bool hf_qed_skip_offmass = false;
     bool hf_qed_use_electron_screening = false;
     // HF/NuclearPolarisability
-    bool hf_nuclear_polarisability_alpha_e = false;
-    bool hf_nuclear_polarisability_ebar_mev = false;
+    bool hf_do_nuclear_polarisability = false;
+    double hf_nuclear_polarisability_alpha_e;
+    double hf_nuclear_polarisability_ebar_mev;
     // HF/Yukawa
     bool hf_do_yukawa = false;
     std::optional<double> hf_yukawa_mass;

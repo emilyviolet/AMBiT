@@ -159,60 +159,77 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
         hartreeY = std::make_shared<BreitZero>(hartreeY, integrator, coulomb);
     }
 
-    if(user_input.search(2, "HF/QED/--uehling", "HF/--qed"))
+    // QED options
+    if(hf_config.qed_config)
     {
-        pUehlingDecorator uehling;
-
-        if(nucleus && user_input.search("HF/QED/--use-nuclear-density"))
-        {   uehling.reset(new UehlingDecorator(hf, nucleus->GetNuclearDensity()));
-        }
+        // Get the nuclear RMS radius to use for QED calculations. This will be either a user
+        // specified value (QED/NuclearRMSRadius) or the value used in the rest of the calculation 
+        double nuclear_rms_radius;
+        if(hf_config.qed_config->nuclear_rms_radius)
+            nuclear_rms_radius = hf_config.qed_config->nuclear_rms_radius.value();
         else
-        {   double nuclear_rms_radius = user_input("HF/QED/NuclearRMSRadius", -1.0);
-            if(nuclear_rms_radius < 0.0)
-                nuclear_rms_radius = GetNuclearRMSRadius();
-            uehling.reset(new UehlingDecorator(hf, nuclear_rms_radius));
-        }
+            nuclear_rms_radius = GetNuclearRMSRadius();
 
-        hf = uehling;
-    }
-
-    if(user_input.search(2, "HF/QED/--self-energy", "HF/--qed"))
-    {
-        pElectricSelfEnergyDecorator electricQED;
-        pMagneticSelfEnergyDecorator magneticQED;
-
-        if(nucleus && user_input.search("HF/QED/--use-nuclear-density"))
+        // Uehling options
+        if(hf_config.qed_config->uehling)
         {
-            if(!user_input.search("HF/QED/--no-magnetic"))
-            {   magneticQED.reset(new MagneticSelfEnergyDecorator(hf, nucleus->GetNuclearDensity()));
-                hf = magneticQED;
-            }
-            if(!user_input.search("HF/QED/--no-electric"))
-            {   electricQED.reset(new ElectricSelfEnergyDecorator(hf, nucleus->GetNuclearDensity()));
-                hf = electricQED;
-            }
-        }
-        else
-        {   double nuclear_rms_radius = user_input("HF/QED/NuclearRMSRadius", -1.0);
-            if(nuclear_rms_radius < 0.0)
-                nuclear_rms_radius = GetNuclearRMSRadius();
+            pUehlingDecorator uehling;
 
-            if(!user_input.search("HF/QED/--no-magnetic"))
-            {   magneticQED.reset(new MagneticSelfEnergyDecorator(hf, nuclear_rms_radius));
-                hf = magneticQED;
+            if(hf_config.qed_config->use_nuclear_density)
+            {   
+                uehling.reset(new UehlingDecorator(hf, nucleus->GetNuclearDensity()));
             }
-            if(!user_input.search("HF/QED/--no-electric"))
-            {   bool skip_offmass = user_input.search("HF/QED/--skip-offmass");
-                electricQED.reset(new ElectricSelfEnergyDecorator(hf, nuclear_rms_radius, !skip_offmass));
-                hf = electricQED;
+            else
+            {   
+                uehling.reset(new UehlingDecorator(hf, nuclear_rms_radius));
+            }
+
+            hf = uehling;
+        }
+
+        // Self-energy options
+        if(hf_config.qed_config->self_energy)
+        {
+            pElectricSelfEnergyDecorator electricQED;
+            pMagneticSelfEnergyDecorator magneticQED;
+
+            // Use the nuclear density from the rest of the calculation
+            if(hf_config.qed_config->use_nuclear_density)
+            {
+                if(!hf_config.qed_config->no_magnetic)
+                {   
+                    magneticQED.reset(new MagneticSelfEnergyDecorator(hf, nucleus->GetNuclearDensity()));
+                    hf = magneticQED;
+                }
+                if(!hf_config.qed_config->no_electric)
+                {   
+                    electricQED.reset(new ElectricSelfEnergyDecorator(hf, nucleus->GetNuclearDensity()));
+                    hf = electricQED;
+                }
+            }
+            // Use a user-specified value for nuclear density/RMS
+            else
+            {                   
+                if(!hf_config.qed_config->no_magnetic)
+                {   
+                    magneticQED.reset(new MagneticSelfEnergyDecorator(hf, nuclear_rms_radius));
+                    hf = magneticQED;
+                }
+                if(!hf_config.qed_config->no_electric)
+                {   
+                    bool skip_offmass = hf_config.qed_config->skip_offmass; 
+                    electricQED.reset(new ElectricSelfEnergyDecorator(hf, nuclear_rms_radius, !skip_offmass));
+                    hf = electricQED;
+                }
             }
         }
     }
 
-    if(user_input.SectionExists("HF/NuclearPolarisability"))
+    // Nuclear polarisability options
+    if(hf_config.nuclear_polarisability_config)
     {
-        double alphaE = user_input("HF/NuclearPolarisability/alphaE", 0.0);
-        double Ebar = user_input("HF/NuclearPolarisability/EbarMeV", 8.0);
+        double alphaE = hf_config.nuclear_polarisability_config->alphaE; 
+        double Ebar = hf_config.nuclear_polarisability_config->ebarMeV; 
 
         hf = std::make_shared<NuclearPolarisability>(hf, alphaE, Ebar);
     }
