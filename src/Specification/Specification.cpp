@@ -68,8 +68,8 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"HF/QED/--use-electron-screening", &GlobalSpecification::hf_qed_use_electron_screening},
     // HF/NuclearPolarisability
     {"HF/NuclearPolarisability",     &GlobalSpecification::hf_do_nuclear_polarisability},
-    {"HF/NuclearPolarisability/AlphaE",     &GlobalSpecification::hf_nuclear_polarisability_alpha_e},
-    {"HF/NuclearPolarisability/EbarMeV",    &GlobalSpecification::hf_nuclear_polarisability_ebar_mev},
+    {"HF/NuclearPolarisability/AlphaE",     &GlobalSpecification::hf_nuclear_polarisability_alpha_e, P::nonzero()},
+    {"HF/NuclearPolarisability/EbarMeV",    &GlobalSpecification::hf_nuclear_polarisability_ebar_mev, P::nonzero()},
     // HF/Yukawa
     {"HF/Yukawa",           &GlobalSpecification::hf_do_yukawa},
     {"HF/Yukawa/Mass",      &GlobalSpecification::hf_yukawa_mass},
@@ -197,6 +197,11 @@ BasisConfig GlobalSpecification::getBasisConfig() const {
         }
         config.frozen_core = basis_frozen_core;
         config.valence_basis = basis_valence;
+        // Technically breaks "encapsulation" since this is defined in the [MBPT] input section,
+        // but it's only ever accessed when generating the basis, so it should logically go in the
+        // basis_config. Also this is a std::optional since it's perfectly valid for it to not
+        // exist if we're not doing MBPT
+        config.MBPT_basis = mbpt_basis;
         config.include_valence = basis_include_valence;
         config.exclude_valence = basis_exclude_valence;
         config.residue = basis_residue;
@@ -232,7 +237,6 @@ HFConfig GlobalSpecification::getHFConfig() const {
     //bool do_qed = hf_qed_uehling || hf_qed_self_energy;
     if(hf_do_qed)
     {
-        std::cout << "Doing QED..." << std::endl;
         config.qed_config = QEDConfig{0};
         config.qed_config->uehling = hf_qed_uehling;
         config.qed_config->self_energy = hf_qed_self_energy;
@@ -246,7 +250,6 @@ HFConfig GlobalSpecification::getHFConfig() const {
 
     if(hf_do_yukawa)
     {
-        std::cout << "Doing Yukawa..." << std::endl;
         config.yukawa_config = YukawaConfig{0};
         config.yukawa_config->mass = hf_yukawa_mass;
         config.yukawa_config->massEV = hf_yukawa_massev;
@@ -256,7 +259,6 @@ HFConfig GlobalSpecification::getHFConfig() const {
 
     if(hf_do_local_potential)
     {
-        std::cout << "Doing local potential..." << std::endl;
         config.local_potential_config = LocalPotentialConfig{0};
         config.local_potential_config->filename = hf_addlocal_filename;
         config.local_potential_config->scale = hf_addlocal_scale;
@@ -264,7 +266,6 @@ HFConfig GlobalSpecification::getHFConfig() const {
 
     if(hf_do_nuclear_polarisability)
     {
-        std::cout << "Doing nuclear polarisability..." << std::endl;
         config.nuclear_polarisability_config = NuclearPolarisabilityConfig{0};
         config.nuclear_polarisability_config->alphaE = hf_nuclear_polarisability_alpha_e;
         config.nuclear_polarisability_config->ebarMeV = hf_nuclear_polarisability_ebar_mev;
@@ -305,22 +306,24 @@ std::string validateSpecification(const GlobalSpecification& gs) {
         return "Must specify at least one of HF/N or HF/Charge";
     
     // Yukawa interaction has three possible parameters to determine its mass: Mass, MassEV and
-    // rc, which are logically equivalent but differ in units. The input file can
-    // have at most one of these defined; if none are defined then it defaults to Mass = 1.
+    // rc, which are logically equivalent but differ in units. The input file must have exactly one
+    // of these defined.
     //
     // Count the number of parameters which are set. There's only three so a dumb solution is
     // okay
-    unsigned count = 0;
-    if(gs.hf_yukawa_mass)
-        count++;
-    if(gs.hf_yukawa_massev)
-        count++;
-    if(gs.hf_yukawa_rc)
-        count++;
+    if(gs.hf_do_yukawa)
+    {
+        unsigned count = 0;
+        if(gs.hf_yukawa_mass)
+            count++;
+        if(gs.hf_yukawa_massev)
+            count++;
+        if(gs.hf_yukawa_rc)
+            count++;
 
-    if(count > 1)
-        return "Must specify at most one of HF/Yukawa/Mass, HF/Yukawa/MassEV, or HF/Yukawa/Rc";
-
+        if(count != 1)
+            return "Must specify exactly one of HF/Yukawa/Mass, HF/Yukawa/MassEV, or HF/Yukawa/Rc when using HF/Yukawa";
+    }
     // Oll Korrect
     return "";
 }

@@ -5,12 +5,12 @@
 #include "Basis/BasisConfig.h"
 #include "HartreeFock/HFConfig.h"
 #include "HartreeFock/Orbital.h"
-#include "HartreeFock/HFOperator.h"
 #include "HartreeFock/NucleusDecorator.h"
 #include "HartreeFock/HartreeY.h"
 #include "MBPT/BruecknerDecorator.h"
 #include "OrbitalManager.h"
-#include <list>
+#include "Specification/Specification.h"
+#include "Universal/LatticeConfig.h"
 
 namespace Ambit
 {
@@ -22,7 +22,7 @@ namespace Ambit
 class BasisGenerator
 {
 public:
-    BasisGenerator(pLattice lat, MultirunOptions& userInput, BasisConfig basis_config, HFConfig hf_config, pPhysicalConstant physical_constant = nullptr);
+    BasisGenerator(pLattice lat, MultirunOptions& userInput, GlobalSpecification specification, pPhysicalConstant physical_constant = nullptr);
     virtual ~BasisGenerator();
 
     /** Generate core orbitals. If open_shell_core is supplied, then use this as a starting approximation.
@@ -140,12 +140,15 @@ protected:
     double TestOrthogonality(OrbitalInfo& max_i, OrbitalInfo& max_j) const;
 
 protected:
-    pLattice lattice;
+
     MultirunOptions& user_input;
+    GlobalSpecification specification;
     BasisConfig basis_config;
     HFConfig hf_config;
+    LatticeConfig lattice_config;
     pPhysicalConstant physical_constant;
 
+    pLattice lattice;
     pCore open_core;
     pCore closed_core;
     pOrbitalManager orbitals;

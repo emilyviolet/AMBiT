@@ -2,7 +2,9 @@
 #define BASIS_CONFIG_H
 
 #include <variant>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace Ambit
 {
@@ -13,8 +15,10 @@ enum class SplineType : int;
 struct BaseBasisConfig {
     std::string valence_basis;
     std::string frozen_core;
-    std::string include_valence;
-    std::string exclude_valence;
+    std::optional<std::string> MBPT_basis; // Technically defined as the MBPT basis, but only gets accessed
+                               // when generating the "high" basis orbitals
+    std::vector<std::string> include_valence;
+    std::vector<std::string> exclude_valence;
     std::string residue;
     std::string inject_orbitals;
     std::string hf_orbitals;

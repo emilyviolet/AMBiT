@@ -70,7 +70,7 @@ pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
         // Basis options from input
         BasisConfig basis_config = specification.getBasisConfig();
         HFConfig hf_config = specification.getHFConfig();
-        basis_generator = std::make_shared<BasisGenerator>(lattice, user_input, basis_config, hf_config);
+        basis_generator = std::make_shared<BasisGenerator>(lattice, user_input, specification);
         open_core = basis_generator->GenerateHFCore(hf_open_core_start);
         hf_open = basis_generator->GetOpenHFOperator();
 
@@ -115,7 +115,7 @@ bool Atom::ReadBasis()
     // Basis and HF options from input
     BasisConfig basis_config = specification.getBasisConfig();
     HFConfig hf_config = specification.getHFConfig();
-    basis_generator = std::make_shared<BasisGenerator>(lattice, user_input, basis_config, hf_config);
+    basis_generator = std::make_shared<BasisGenerator>(lattice, user_input, specification);
     hf_open = basis_generator->RecreateBasis(modifiable_orbitals);
 
     orbitals = modifiable_orbitals;

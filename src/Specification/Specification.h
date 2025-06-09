@@ -84,8 +84,8 @@ struct GlobalSpecification {
     // Basis
     std::string basis_valence;
     std::string basis_frozen_core;
-    std::string basis_include_valence;
-    std::string basis_exclude_valence;
+    std::vector<std::string> basis_include_valence;
+    std::vector<std::string> basis_exclude_valence;
     std::string basis_residue;
     std::string basis_inject_orbitals;
     bool basis_reorthogonalise;
@@ -143,7 +143,7 @@ struct GlobalSpecification {
     bool ci_smallside_print_rel_configurations = false;
     std::pair<double, double> ci_smallside_configuration_average_energy_range;
     // MBPT
-    std::string mbpt_basis;
+    std::optional<std::string> mbpt_basis;
     std::string mbpt_energy_denom_orbitals;
     bool mbpt_use_valence;
     bool mbpt_no_core;

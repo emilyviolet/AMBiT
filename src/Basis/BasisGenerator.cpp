@@ -11,16 +11,23 @@
 #include "ExternalField/RadiativePotential.h"
 #include "ExternalField/NuclearPolarisability.h"
 #include "ExternalField/YukawaPotential.h"
+#include "Universal/Lattice.h"
+#include "Universal/LatticeConfig.h"
+#include "Specification/Specification.h"
 
 namespace Ambit
 {
-BasisGenerator::BasisGenerator(pLattice lat, MultirunOptions& userInput, BasisConfig basis_config, HFConfig hf_config, pPhysicalConstant physical_constant):
+BasisGenerator::BasisGenerator(pLattice lat, MultirunOptions& userInput, GlobalSpecification specification, pPhysicalConstant physical_constant):
     lattice(lat), user_input(userInput), physical_constant(physical_constant), 
-    basis_config(std::move(basis_config)), 
-    hf_config(std::move(hf_config)),
+    specification(std::move(specification)),
     open_core(nullptr)
 {
     orbitals = pOrbitalManager(new OrbitalManager(lattice));
+
+    // User input configuration objects
+    basis_config = specification.getBasisConfig();
+    hf_config = specification.getHFConfig();
+    lattice_config = specification.getLatticeConfig();
 }
 
 BasisGenerator::~BasisGenerator()
@@ -234,24 +241,26 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
         hf = std::make_shared<NuclearPolarisability>(hf, alphaE, Ebar);
     }
 
-    if(user_input.SectionExists("HF/Yukawa"))
+    // Yukawa options
+    if(hf_config.yukawa_config)
     {
-        double mass = 0.;
-        if(user_input.VariableExists("HF/Yukawa/Mass"))
-            mass = user_input("HF/Yukawa/Mass", 1.0);
-        else if(user_input.VariableExists("HF/Yukawa/MassEV"))
-            mass = user_input("HF/Yukawa/MassEV", 1.0)/MathConstant::Instance()->ElectronMassInEV;
-        else if(user_input.VariableExists("HF/Yukawa/Rc"))
-            mass = 1./(physical_constant->GetAlpha() * user_input("HF/Yukawa/Rc", 1.0));
+        double mass = 1.0;
+        // Note that there are multiple different, equivalent ways of specifying the mass. The
+        // specification guarantees that exactly one of these is set, to avoid conflicting values
+        if(hf_config.yukawa_config->mass)
+            mass = hf_config.yukawa_config->mass.value();
+        else if (hf_config.yukawa_config->massEV)
+            mass = hf_config.yukawa_config->massEV.value()/MathConstant::Instance()->ElectronMassInEV;
+        else if(hf_config.yukawa_config->rc)
+            mass = 1./(physical_constant->GetAlpha() * hf_config.yukawa_config->rc.value());
 
-        double scale = user_input("HF/Yukawa/Scale", 1.);
-
+        double scale = hf_config.yukawa_config->scale;
         hf = std::make_shared<YukawaDecorator>(hf, mass, scale);
     }
 
-    if(user_input.search("HF/--local-exchange"))
+    if(hf_config.local_exchange)
     {
-        double xalpha = user_input("HF/Xalpha", 1.0);
+        double xalpha = hf_config.xalpha;
         pHFOperator localexch = std::make_shared<LocalExchangeApproximation>(hf, coulomb, xalpha);
         localexch->SetCore(open_core);
         hf = localexch;
@@ -259,10 +268,11 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
         undressed_hf = hf;
     }
 
-    std::string filename = user_input("HF/AddLocalPotential/Filename", "");
-    if(!filename.empty())
+    // Local potential decorator options
+    if(hf_config.local_potential_config)
     {
-        double scale = user_input("HF/AddLocalPotential/Scale", 1.);
+        std::string filename = hf_config.local_potential_config->filename;
+        double scale = hf_config.local_potential_config->scale;
         pImportedPotentialDecorator loc(new ImportedPotentialDecorator(hf, filename));
         loc->SetScale(scale);
         hf = loc;
@@ -299,8 +309,10 @@ void BasisGenerator::SetOrbitalMaps()
     OrbitalMap& deep = *orbitals->deep;
     OrbitalMap& hole = *orbitals->hole;
 
-    std::string deep_states = user_input("Basis/FrozenCore", "");
-    //std::string deep_states = basis_config.frozen_core;
+    // std::visitor to deal with variant types of the basis config (e.g. different kinds of basis
+    // functions)
+    // TODO EVK: Not sure if I like having to do this every time I access the base class...
+    std::string deep_states = std::visit([](auto &&var) {return var.frozen_core;},basis_config);
     if(deep_states.length())
     {
         std::vector<int> max_deep_pqns = ConfigurationParser::ParseBasisSize(deep_states);
@@ -320,10 +332,12 @@ void BasisGenerator::SetOrbitalMaps()
     }
 
     // IncludeValence moves deep orbitals into valence holes
-    int num_unfrozen = user_input.vector_variable_size("Basis/IncludeValence");
+    int num_unfrozen = std::visit([](auto&& var) -> int {return(var.include_valence.size());}, basis_config);
     for(int i = 0; i < num_unfrozen; i++)
     {
-        NonRelInfo nrorb = ConfigurationParser::ParseOrbital(user_input("Basis/IncludeValence", "", i));
+        NonRelInfo nrorb = std::visit([&](auto&& var) -> NonRelInfo {
+                return(ConfigurationParser::ParseOrbital(var.include_valence[i]));
+                }, basis_config);
         for(auto& orbinfo: nrorb.GetRelativisticInfos())
         {
             auto it = deep.find(orbinfo);
@@ -340,7 +354,7 @@ void BasisGenerator::SetOrbitalMaps()
     }
 
     // Transfer from all to excited states
-    std::string valence_states = user_input("Basis/ValenceBasis", "");
+    std::string valence_states = std::visit([](auto&& var) -> std::string {return var.valence_basis;},basis_config);
     std::vector<int> max_pqn_per_l = ConfigurationParser::ParseBasisSize(valence_states);
 
     orbitals->particle = std::make_shared<OrbitalMap>(lattice);
@@ -357,7 +371,11 @@ void BasisGenerator::SetOrbitalMaps()
     }
 
     // high (virtual) states.
-    std::string virtual_states = user_input("MBPT/Basis", "");
+    // Two type magic things happening here: std::visit to concretize the basis variant type, then
+    // a value_or since the MBOPT basis might not exist
+    std::string virtual_states = std::visit([](auto&& var) -> std::string {
+            return(var.MBPT_basis.value_or(""));
+            }, basis_config);
     orbitals->excited = std::make_shared<OrbitalMap>(lattice);
     orbitals->high = std::make_shared<OrbitalMap>(lattice);
 
@@ -386,10 +404,12 @@ void BasisGenerator::SetOrbitalMaps()
     }
 
     // ExcludeValence moves particle orbitals into high states
-    int num_excluded = user_input.vector_variable_size("Basis/ExcludeValence");
+    int num_excluded = std::visit([](auto&& var) -> int {return(var.exclude_valence.size());}, basis_config);
     for(int i = 0; i < num_excluded; i++)
     {
-        NonRelInfo nrorb = ConfigurationParser::ParseOrbital(user_input("Basis/ExcludeValence", "", i));
+        NonRelInfo nrorb = std::visit([&](auto&& var) -> NonRelInfo {
+                return(ConfigurationParser::ParseOrbital(var.exclude_valence[i]));
+                }, basis_config);
         for(auto& orbinfo: nrorb.GetRelativisticInfos())
         {
             auto it = particle.find(orbinfo);
@@ -413,9 +433,9 @@ void BasisGenerator::SetOrbitalMaps()
 
 void BasisGenerator::UpdateNonSelfConsistentOperators()
 {
-    if(user_input.search("HF/QED/--use-electron-screening"))
+    if(hf_config.qed_config->use_electron_screening)
     {
-        if(nucleus == nullptr || !user_input.search("HF/QED/--use-nuclear-density"))
+        if(nucleus == nullptr || !hf_config.qed_config->use_nuclear_density)
         {
             *logstream << "Cannot have screened Uehling without finite sized nucleus." << std::endl;
             return;
@@ -486,7 +506,10 @@ pCore BasisGenerator::GenerateHFCore(pCoreConst open_shell_core)
 
     // Resize lattice according to larger of core or user input.
     unsigned int core_size = open_core->LargestOrbitalSize();
-    unsigned int original_lattice_size = user_input("Lattice/NumPoints", 1000);
+    unsigned int original_lattice_size = std::visit([](auto&& var) -> unsigned int {
+            return(var.num_points);
+            }, lattice_config);
+
     lattice->resize(mmax(core_size, original_lattice_size));
 
     return open_core;
@@ -524,7 +547,11 @@ pHFOperator BasisGenerator::RecreateBasis(pOrbitalManager orbital_manager)
 pOrbitalManagerConst BasisGenerator::GenerateBasis()
 {
     // Make sure hf is correct
-    std::string residue = user_input("Basis/Residue", "");
+    std::string residue ;//= user_input("Basis/Residue", "");
+    std::visit([](auto &&var) -> std::string {
+            return(var.residue);
+            }, basis_config);
+
     if(residue.empty())
     {
         hf->SetCore(open_core);
