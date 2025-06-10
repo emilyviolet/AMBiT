@@ -22,7 +22,7 @@ namespace Ambit
 class BasisGenerator
 {
 public:
-    BasisGenerator(pLattice lat, MultirunOptions& userInput, GlobalSpecification specification, pPhysicalConstant physical_constant = nullptr);
+    BasisGenerator(pLattice lat, MultirunOptions& userInput, HFConfig hf_config, BasisConfig basis_config, pPhysicalConstant physical_constant = nullptr);
     virtual ~BasisGenerator();
 
     /** Generate core orbitals. If open_shell_core is supplied, then use this as a starting approximation.
@@ -142,10 +142,8 @@ protected:
 protected:
 
     MultirunOptions& user_input;
-    GlobalSpecification specification;
     BasisConfig basis_config;
     HFConfig hf_config;
-    LatticeConfig lattice_config;
     pPhysicalConstant physical_constant;
 
     pLattice lattice;

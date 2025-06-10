@@ -92,6 +92,8 @@ public:
 
     virtual void Write(FILE* binary_outfile) const;
 
+    double get_original_size() { return original_size; };
+
 protected:
     Lattice(): original_size(0), num_points(0), beta(0.), h(0.), rmin(0.) {}
 

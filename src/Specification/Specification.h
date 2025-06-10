@@ -89,9 +89,9 @@ struct GlobalSpecification {
     std::string basis_residue;
     std::string basis_inject_orbitals;
     bool basis_reorthogonalise;
-    bool basis_hf;
-    bool basis_bspline;
-    bool basis_xr;
+    bool basis_hf = false;
+    bool basis_bspline = true;
+    bool basis_xr = false;
     std::string basis_hf_orbitals;
     std::string basis_custom_orbitals;
     // Basis/BSpline

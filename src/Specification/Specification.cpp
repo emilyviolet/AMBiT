@@ -81,7 +81,7 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"HF/AddLocalPotential/Filename",   &GlobalSpecification::hf_addlocal_filename},
     {"HF/AddLocalPotential/Scale",      &GlobalSpecification::hf_addlocal_scale},
     // Basis
-    {"Basis/Valence",           &GlobalSpecification::basis_valence},
+    {"Basis/ValenceBasis",           &GlobalSpecification::basis_valence},
     {"Basis/FrozenCore",        &GlobalSpecification::basis_frozen_core},
     {"Basis/IncludeValence",    &GlobalSpecification::basis_include_valence},
     {"Basis/ExcludeValence",    &GlobalSpecification::basis_exclude_valence},
@@ -207,7 +207,6 @@ BasisConfig GlobalSpecification::getBasisConfig() const {
         config.residue = basis_residue;
         config.inject_orbitals = basis_inject_orbitals;
         config.hf_orbitals = basis_hf_orbitals;
-
         return(config);
     }
 }

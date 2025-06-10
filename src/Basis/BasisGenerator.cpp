@@ -1,4 +1,6 @@
 #include "BasisGenerator.h"
+#include "Basis/BasisConfig.h"
+#include "HartreeFock/HFConfig.h"
 #include "Include.h"
 #include "HartreeFock/ConfigurationParser.h"
 #include "HartreeFock/Integrator.h"
@@ -17,17 +19,13 @@
 
 namespace Ambit
 {
-BasisGenerator::BasisGenerator(pLattice lat, MultirunOptions& userInput, GlobalSpecification specification, pPhysicalConstant physical_constant):
+BasisGenerator::BasisGenerator(pLattice lat, MultirunOptions& userInput, HFConfig hf_config, BasisConfig basis_config, pPhysicalConstant physical_constant):
     lattice(lat), user_input(userInput), physical_constant(physical_constant), 
-    specification(std::move(specification)),
+    hf_config(std::move(hf_config)),
+    basis_config(std::move(basis_config)),
     open_core(nullptr)
 {
     orbitals = pOrbitalManager(new OrbitalManager(lattice));
-
-    // User input configuration objects
-    basis_config = specification.getBasisConfig();
-    hf_config = specification.getHFConfig();
-    lattice_config = specification.getLatticeConfig();
 }
 
 BasisGenerator::~BasisGenerator()
@@ -433,42 +431,45 @@ void BasisGenerator::SetOrbitalMaps()
 
 void BasisGenerator::UpdateNonSelfConsistentOperators()
 {
-    if(hf_config.qed_config->use_electron_screening)
+    if(hf_config.qed_config)
     {
-        if(nucleus == nullptr || !hf_config.qed_config->use_nuclear_density)
+        if(hf_config.qed_config->use_electron_screening)
         {
-            *logstream << "Cannot have screened Uehling without finite sized nucleus." << std::endl;
-            return;
-        }
+            if(nucleus == nullptr || !hf_config.qed_config->use_nuclear_density)
+            {
+                *logstream << "Cannot have screened Uehling without finite sized nucleus." << std::endl;
+                return;
+            }
 
-        RadialFunction density(nucleus->GetNuclearDensity());
-        for(const auto& orb: *open_core)
-        {
-            density -= orb.second->GetDensity() * open_core->GetOccupancy(orb.first);
-        }
+            RadialFunction density(nucleus->GetNuclearDensity());
+            for(const auto& orb: *open_core)
+            {
+                density -= orb.second->GetDensity() * open_core->GetOccupancy(orb.first);
+            }
 
-        pUehlingDecorator uehling;
-        pMagneticSelfEnergyDecorator magneticQED;
-        pElectricSelfEnergyDecorator electricQED;
+            pUehlingDecorator uehling;
+            pMagneticSelfEnergyDecorator magneticQED;
+            pElectricSelfEnergyDecorator electricQED;
 
-        // Traverse HFOperatorDecorator stack in hf to find QED decorators.
-        std::shared_ptr<HFBasicDecorator> hfdecorator = std::dynamic_pointer_cast<HFBasicDecorator>(hf);
-        while(hfdecorator)
-        {
-            uehling = std::dynamic_pointer_cast<UehlingDecorator>(hfdecorator);
-            magneticQED = std::dynamic_pointer_cast<MagneticSelfEnergyDecorator>(hfdecorator);
-            electricQED = std::dynamic_pointer_cast<ElectricSelfEnergyDecorator>(hfdecorator);
+            // Traverse HFOperatorDecorator stack in hf to find QED decorators.
+            std::shared_ptr<HFBasicDecorator> hfdecorator = std::dynamic_pointer_cast<HFBasicDecorator>(hf);
+            while(hfdecorator)
+            {
+                uehling = std::dynamic_pointer_cast<UehlingDecorator>(hfdecorator);
+                magneticQED = std::dynamic_pointer_cast<MagneticSelfEnergyDecorator>(hfdecorator);
+                electricQED = std::dynamic_pointer_cast<ElectricSelfEnergyDecorator>(hfdecorator);
 
-            hfdecorator = std::dynamic_pointer_cast<HFBasicDecorator>(hfdecorator->GetWrapped());
-        }
+                hfdecorator = std::dynamic_pointer_cast<HFBasicDecorator>(hfdecorator->GetWrapped());
+            }
 
-        if(uehling)
-            uehling->GenerateUehling(density);
-        if(magneticQED)
-            magneticQED->GenerateMagnetic(density);
-        if(electricQED)
-        {   electricQED->GenerateEhigh(density);
-            electricQED->GenerateElow(density);
+            if(uehling)
+                uehling->GenerateUehling(density);
+            if(magneticQED)
+                magneticQED->GenerateMagnetic(density);
+            if(electricQED)
+            {   electricQED->GenerateEhigh(density);
+                electricQED->GenerateElow(density);
+            }
         }
     }
 }
@@ -505,12 +506,13 @@ pCore BasisGenerator::GenerateHFCore(pCoreConst open_shell_core)
     HF_Solver.SolveCore(open_core, hf);
 
     // Resize lattice according to larger of core or user input.
+    // NOTE: This is slightly different to the pre-parapara behaviour. This checks the value of
+    // original_size" that the current lattice was constructed with, which is not necessarily equal
+    // to the value of Lattice/NumPoints (e.g. if we've re-created the lattice recently). This
+    // should usually be fine though, as this function is usually called close to the start of the
+    // program's run
     unsigned int core_size = open_core->LargestOrbitalSize();
-    unsigned int original_lattice_size = std::visit([](auto&& var) -> unsigned int {
-            return(var.num_points);
-            }, lattice_config);
-
-    lattice->resize(mmax(core_size, original_lattice_size));
+    lattice->resize(mmax(core_size, lattice->get_original_size()));
 
     return open_core;
 }
@@ -547,7 +549,7 @@ pHFOperator BasisGenerator::RecreateBasis(pOrbitalManager orbital_manager)
 pOrbitalManagerConst BasisGenerator::GenerateBasis()
 {
     // Make sure hf is correct
-    std::string residue ;//= user_input("Basis/Residue", "");
+    std::string residue ;
     std::visit([](auto &&var) -> std::string {
             return(var.residue);
             }, basis_config);
