@@ -14,14 +14,16 @@ enum class SplineType : int;
 // Generic parent type for all config types
 struct BaseBasisConfig {
     std::string valence_basis;
-    std::string frozen_core;
-    std::optional<std::string> MBPT_basis; // Technically defined as the MBPT basis, but only gets accessed
+    std::optional<std::string> frozen_core;
+    std::optional<std::string> basis_size;
+    std::optional<std::string> mbpt_basis; // Technically defined as the MBPT basis, but only gets accessed
                                // when generating the "high" basis orbitals
     std::vector<std::string> include_valence;
     std::vector<std::string> exclude_valence;
-    std::string residue;
-    std::string inject_orbitals;
-    std::string hf_orbitals;
+    std::optional<std::string> residue;
+    std::optional<std::string> inject_orbitals;
+    std::optional<std::string> hf_orbitals;
+    bool reorthogonalise;
 };
 
 // Variant types for each kind of BSpline. We pass this to std::variant to ensure we get exactly

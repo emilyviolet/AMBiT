@@ -1,6 +1,7 @@
 #include "BasisGenerator.h"
 #include "Basis/BasisConfig.h"
 #include "HartreeFock/HFConfig.h"
+#include "HartreeFock/OrbitalMap.h"
 #include "Include.h"
 #include "HartreeFock/ConfigurationParser.h"
 #include "HartreeFock/Integrator.h"
@@ -310,10 +311,10 @@ void BasisGenerator::SetOrbitalMaps()
     // std::visitor to deal with variant types of the basis config (e.g. different kinds of basis
     // functions)
     // TODO EVK: Not sure if I like having to do this every time I access the base class...
-    std::string deep_states = std::visit([](auto &&var) {return var.frozen_core;},basis_config);
-    if(deep_states.length())
+    std::optional<std::string> deep_states = std::visit([](auto &&var) {return var.frozen_core;},basis_config);
+    if(deep_states)
     {
-        std::vector<int> max_deep_pqns = ConfigurationParser::ParseBasisSize(deep_states);
+        std::vector<int> max_deep_pqns = ConfigurationParser::ParseBasisSize(deep_states.value());
         auto it = deep.begin();
         while(it != deep.end())
         {
@@ -372,7 +373,7 @@ void BasisGenerator::SetOrbitalMaps()
     // Two type magic things happening here: std::visit to concretize the basis variant type, then
     // a value_or since the MBOPT basis might not exist
     std::string virtual_states = std::visit([](auto&& var) -> std::string {
-            return(var.MBPT_basis.value_or(""));
+            return(var.mbpt_basis.value_or(""));
             }, basis_config);
     orbitals->excited = std::make_shared<OrbitalMap>(lattice);
     orbitals->high = std::make_shared<OrbitalMap>(lattice);
@@ -549,41 +550,84 @@ pHFOperator BasisGenerator::RecreateBasis(pOrbitalManager orbital_manager)
 pOrbitalManagerConst BasisGenerator::GenerateBasis()
 {
     // Make sure hf is correct
-    std::string residue ;
-    std::visit([](auto &&var) -> std::string {
-            return(var.residue);
-            }, basis_config);
+    std::visit([&] (auto &&var) -> void {
+        auto res = var.residue;  
+        if(!res)
+        {
+            hf->SetCore(open_core);
+        }
+        else 
+        {
+            std::string residue = res.value();
+            size_t colon_pos = residue.find(':');
+            if(colon_pos != std::string::npos)
+                residue.erase(colon_pos, 1);
 
-    if(residue.empty())
-    {
-        hf->SetCore(open_core);
-    }
-    else
-    {   // Strip any errant colon
-        size_t colon_pos = residue.find(':');
-        if(colon_pos != std::string::npos)
-            residue.erase(colon_pos, 1);
+            // No need to clone, since we are not changing the core orbitals
+            pCore residual_core = std::make_shared<Core>(*open_core);
 
-        // No need to clone, since we are not changing the core orbitals
-        pCore residual_core = std::make_shared<Core>(*open_core);
+            OccupationMap residual_occupations = ConfigurationParser::ParseFractionalConfiguration(residue);
+            residual_core->SetOccupancies(residual_occupations);
 
-        OccupationMap residual_occupations = ConfigurationParser::ParseFractionalConfiguration(residue);
-        residual_core->SetOccupancies(residual_occupations);
-
-        hf->SetCore(residual_core);
-    }
+            hf->SetCore(residual_core);
+        }
+    }, basis_config);
 
     // Generate excited states
-    std::string all_states = user_input("Basis/BasisSize", "");
-    if(all_states.empty())
-        all_states = user_input("MBPT/Basis", "");
-    if(all_states.empty())
-        all_states = user_input("Basis/ValenceBasis", "");
+    std::optional<std::string> basis_size = std::visit([](auto &&var) {
+            return(var.basis_size);
+            }, basis_config);
 
-    bool reorth = user_input.search("Basis/--reorthogonalise"); // Perform extra orthogonalisation
+    std::optional<std::string> mbpt_basis = std::visit([](auto &&var) {
+            return(var.mbpt_basis);
+            }, basis_config);
+    std::optional<std::string> valence_basis = std::visit([](auto &&var) {
+            return(var.valence_basis);
+            }, basis_config);
+
+    // If we haven't got an explicit basis size, then get this from either the MBPT or Valence
+    // Basis input options, or an empty string, in that order of preference
+    std::string all_states;
+    if(basis_size)
+    {
+        all_states = basis_size.value();
+    } 
+    else if (mbpt_basis)
+    {
+        all_states = mbpt_basis.value();
+    }
+    else
+    {
+        all_states = valence_basis.value_or("");
+    }
+
+    bool reorth = std::visit([](auto &&var) {
+            return(var.reorthogonalise);
+            }, basis_config);
 
     std::vector<int> max_pqn_per_l = ConfigurationParser::ParseBasisSize(all_states);
     pOrbitalMap excited;
+
+    // Now run through the different basis types and generate the basis
+    // Using a custom function with std::visit to exploit the full type information contained in
+    // BasisConfig, especially since each kind of basis needs qualitatively different logic to
+    // process them correctly
+    pOrbitalMap generate_basis_lambda = {
+        [&] (HFBasisConfig& config) -> pOrbitalMap {return GenerateHFExcited(max_pqn_per_l);},
+        [&] (XRBasisConfig& config) -> pOrbitalMap {return GenerateXRExcited(max_pqn_per_l);},
+        [&] (BSplineBasisConfig& config) -> pOrbitalMap
+            {
+                auto bsplines = GenerateBSplines(max_pqn_per_l);
+                // Replace requested valence orbitals with HF orbitals (if any)
+                if(config.hf_orbitals)
+                {
+                    std::string hf_valence_states = config.hf_orbitals.value();
+                    UpdateHFOrbitals(ConfigurationParser::ParseBasisSize(hf_valence_states), excited);
+                }
+                return bsplines;
+            }
+    };
+    excited = std::visit(generate_basis_lambda, basis_config);
 
     if(user_input.search("Basis/--hf-basis"))
     {   excited = GenerateHFExcited(max_pqn_per_l);

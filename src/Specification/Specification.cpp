@@ -81,7 +81,8 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"HF/AddLocalPotential/Filename",   &GlobalSpecification::hf_addlocal_filename},
     {"HF/AddLocalPotential/Scale",      &GlobalSpecification::hf_addlocal_scale},
     // Basis
-    {"Basis/ValenceBasis",           &GlobalSpecification::basis_valence},
+    {"Basis/BasisSize",         &GlobalSpecification::basis_size},
+    {"Basis/ValenceBasis",      &GlobalSpecification::basis_valence},
     {"Basis/FrozenCore",        &GlobalSpecification::basis_frozen_core},
     {"Basis/IncludeValence",    &GlobalSpecification::basis_include_valence},
     {"Basis/ExcludeValence",    &GlobalSpecification::basis_exclude_valence},
@@ -150,24 +151,30 @@ BasisConfig GlobalSpecification::getBasisConfig() const {
     if(basis_xr) {
         XRBasisConfig config;
         config.frozen_core = basis_frozen_core;
+        config.basis_size = basis_size;
         config.valence_basis = basis_valence;
+        config.mbpt_basis = mbpt_basis;
         config.include_valence = basis_include_valence;
         config.exclude_valence = basis_exclude_valence;
         config.residue = basis_residue;
         config.inject_orbitals = basis_inject_orbitals;
         config.hf_orbitals = basis_hf_orbitals;
         config.custom_orbitals = basis_custom_orbitals;
+        config.reorthogonalise = basis_reorthogonalise;
 
         return(config);
     } else if (basis_hf) {
         HFBasisConfig config;
         config.frozen_core = basis_frozen_core;
+        config.basis_size = basis_size;
         config.valence_basis = basis_valence;
+        config.mbpt_basis = mbpt_basis;
         config.include_valence = basis_include_valence;
         config.exclude_valence = basis_exclude_valence;
         config.residue = basis_residue;
         config.inject_orbitals = basis_inject_orbitals;
         config.hf_orbitals = basis_hf_orbitals;
+        config.reorthogonalise = basis_reorthogonalise;
 
         return(config);
     } else {
@@ -196,17 +203,19 @@ BasisConfig GlobalSpecification::getBasisConfig() const {
             config.spline_type = SplineType::Reno;
         }
         config.frozen_core = basis_frozen_core;
+        config.basis_size = basis_size;
         config.valence_basis = basis_valence;
         // Technically breaks "encapsulation" since this is defined in the [MBPT] input section,
         // but it's only ever accessed when generating the basis, so it should logically go in the
         // basis_config. Also this is a std::optional since it's perfectly valid for it to not
         // exist if we're not doing MBPT
-        config.MBPT_basis = mbpt_basis;
+        config.mbpt_basis = mbpt_basis;
         config.include_valence = basis_include_valence;
         config.exclude_valence = basis_exclude_valence;
         config.residue = basis_residue;
         config.inject_orbitals = basis_inject_orbitals;
         config.hf_orbitals = basis_hf_orbitals;
+        config.reorthogonalise = basis_reorthogonalise;
         return(config);
     }
 }

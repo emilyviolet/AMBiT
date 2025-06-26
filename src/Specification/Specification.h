@@ -83,17 +83,18 @@ struct GlobalSpecification {
     double hf_addlocal_scale = 1.0;
     // Basis
     std::string basis_valence;
-    std::string basis_frozen_core;
+    std::optional<std::string> basis_frozen_core;
+    std::optional<std::string> basis_size;
     std::vector<std::string> basis_include_valence;
     std::vector<std::string> basis_exclude_valence;
-    std::string basis_residue;
-    std::string basis_inject_orbitals;
-    bool basis_reorthogonalise;
+    std::optional<std::string> basis_residue;
+    std::optional<std::string> basis_inject_orbitals;
+    bool basis_reorthogonalise = false;
     bool basis_hf = false;
     bool basis_bspline = true;
     bool basis_xr = false;
-    std::string basis_hf_orbitals;
-    std::string basis_custom_orbitals;
+    std::optional<std::string> basis_hf_orbitals;
+    std::optional<std::string> basis_custom_orbitals;
     // Basis/BSpline
     double basis_bspline_rmax = 0; 
     double basis_bspline_r0 = 0;
