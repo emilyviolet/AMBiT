@@ -1,6 +1,7 @@
 #ifndef BASIS_CONFIG_H
 #define BASIS_CONFIG_H
 
+#include <memory>
 #include <variant>
 #include <optional>
 #include <string>
@@ -21,7 +22,7 @@ struct BaseBasisConfig {
     std::vector<std::string> include_valence;
     std::vector<std::string> exclude_valence;
     std::optional<std::string> residue;
-    std::optional<std::string> inject_orbitals;
+    std::optional<std::vector<std::string>> inject_orbitals;
     std::optional<std::string> hf_orbitals;
     bool reorthogonalise;
 };
@@ -40,11 +41,11 @@ struct HFBasisConfig : BaseBasisConfig {
 };
 
 struct XRBasisConfig : BaseBasisConfig {
-    std::string custom_orbitals;
+    std::optional<std::vector<std::string> > custom_orbitals;
 };
 
-using BasisConfig = std::variant<BSplineBasisConfig, HFBasisConfig, XRBasisConfig>;
-
+typedef std::variant<BSplineBasisConfig, HFBasisConfig, XRBasisConfig> BasisConfig ;
+typedef std::unique_ptr<BSplineBasisConfig> pBSplineBasisConfig;
 } // namespace Ambit
 
 

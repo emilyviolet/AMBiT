@@ -14,14 +14,13 @@
 #include "ExternalField/RadiativePotential.h"
 #include "ExternalField/NuclearPolarisability.h"
 #include "ExternalField/YukawaPotential.h"
+#include "MBPT/MBPTConfig.h"
 #include "Universal/Lattice.h"
-#include "Universal/LatticeConfig.h"
-#include "Specification/Specification.h"
 
 namespace Ambit
 {
-BasisGenerator::BasisGenerator(pLattice lat, MultirunOptions& userInput, HFConfig hf_config, BasisConfig basis_config, pPhysicalConstant physical_constant):
-    lattice(lat), user_input(userInput), physical_constant(physical_constant), 
+BasisGenerator::BasisGenerator(pLattice lat, HFConfig hf_config, BasisConfig basis_config, pPhysicalConstant physical_constant):
+    lattice(lat), physical_constant(physical_constant), 
     hf_config(std::move(hf_config)),
     basis_config(std::move(basis_config)),
     open_core(nullptr)
@@ -612,11 +611,19 @@ pOrbitalManagerConst BasisGenerator::GenerateBasis()
     // Using a custom function with std::visit to exploit the full type information contained in
     // BasisConfig, especially since each kind of basis needs qualitatively different logic to
     // process them correctly
-    pOrbitalMap generate_basis_lambda = {
-        [&] (HFBasisConfig& config) -> pOrbitalMap {return GenerateHFExcited(max_pqn_per_l);},
-        [&] (XRBasisConfig& config) -> pOrbitalMap {return GenerateXRExcited(max_pqn_per_l);},
-        [&] (BSplineBasisConfig& config) -> pOrbitalMap
-            {
+    // TODO EVK: Not sure if I like this more than regular polymorphism...
+    auto func = [&] (auto const& config) {
+        using type = std::decay_t<decltype(config)>;
+        if constexpr (std::is_same<type, HFBasisConfig>::value) 
+        {
+            return GenerateHFExcited(max_pqn_per_l);
+        } 
+        else if constexpr (std::is_same<type, XRBasisConfig>::value)
+        { 
+            return GenerateXRExcited(max_pqn_per_l);
+        }
+        else if constexpr (std::is_same<type, BSplineBasisConfig>::value)
+        {
                 auto bsplines = GenerateBSplines(max_pqn_per_l);
                 // Replace requested valence orbitals with HF orbitals (if any)
                 if(config.hf_orbitals)
@@ -625,36 +632,24 @@ pOrbitalManagerConst BasisGenerator::GenerateBasis()
                     UpdateHFOrbitals(ConfigurationParser::ParseBasisSize(hf_valence_states), excited);
                 }
                 return bsplines;
-            }
-    };
-    excited = std::visit(generate_basis_lambda, basis_config);
-
-    if(user_input.search("Basis/--hf-basis"))
-    {   excited = GenerateHFExcited(max_pqn_per_l);
-    }
-    else if(user_input.search("Basis/--xr-basis"))
-    {   excited = GenerateXRExcited(max_pqn_per_l);
-    }
-    else // default "Basis/--bspline-basis"
-    {   user_input.search("Basis/--bspline-basis"); // Just to clear UFO from user_input.
-        excited = GenerateBSplines(max_pqn_per_l);
-
-        // Replace requested valence orbitals with HF orbitals
-        std::string hf_valence_states = user_input("Basis/HFOrbitals", "");
-        if(!hf_valence_states.empty())
-        {
-            UpdateHFOrbitals(ConfigurationParser::ParseBasisSize(hf_valence_states), excited);
         }
-    }
+    };
+    excited = std::visit(func, basis_config);
 
     // Inject any special orbitals from another basis, and push the old ones to higher pqn
-    int number_injected = user_input.vector_variable_size("Basis/InjectOrbitals");
-    for(int i = 0; i < number_injected; i++)
-    {
-        std::string inject_string = user_input("Basis/InjectOrbitals", "", i);
-        InjectOrbitals(inject_string, excited);
-        reorth = true;
-    }
+    std::visit([&](auto &&var) {
+        if(var.inject_orbitals)
+        {
+            auto num_injected = var.inject_orbitals.value().size();
+
+            for(int i = 0; i < num_injected; i++)
+            {
+                auto inject_string = var.inject_orbitals.value()[i];
+                InjectOrbitals(inject_string, excited);
+                reorth = true;
+            }
+        }
+    }, basis_config);
 
     // Place all orbitals in orbitals->all.
     // Finally create orbitals->all and the state index
@@ -755,13 +750,13 @@ void BasisGenerator::InjectOrbitals(const std::string& input, pOrbitalMap excite
     }
 }
 
-void BasisGenerator::CreateBruecknerOrbitals(pBruecknerDecorator brueckner)
+void BasisGenerator::CreateBruecknerOrbitals(pBruecknerDecorator brueckner, MBPTConfig mbpt_config)
 {
     // Set hf operator to brueckner for the rest of the calculation
     hf = brueckner;
 
     pOrbitalMap orbitals_to_update = orbitals->valence;
-    if(user_input.search("MBPT/Brueckner/--excited"))
+    if(mbpt_config.brueckner_config && mbpt_config.brueckner_config->use_excited)
         orbitals_to_update = orbitals->excited;
 
     // Get max PQN for l
@@ -775,6 +770,8 @@ void BasisGenerator::CreateBruecknerOrbitals(pBruecknerDecorator brueckner)
         max_pqn[l] = mmax(max_pqn[l], pair.first.PQN());
     }
 
+    // TODO: This is currently hardcoded to just use BSplines, but do we want to generate different
+    // kinds of orbitals depending on the config?
     pOrbitalMap brueckner_orbitals = GenerateBSplines(max_pqn);
 
     for (auto &pair: *orbitals_to_update)
@@ -787,11 +784,12 @@ void BasisGenerator::CreateBruecknerOrbitals(pBruecknerDecorator brueckner)
     }
 
     // Update HF orbitals
-    std::string hf_valence_states = user_input("Basis/HFOrbitals", "");
-    if(!hf_valence_states.empty())
-    {
-        UpdateHFOrbitals(ConfigurationParser::ParseBasisSize(hf_valence_states), orbitals_to_update);
-    }
+    std::visit([&](auto &&var){
+        if(var.hf_orbitals)
+        {
+            UpdateHFOrbitals(ConfigurationParser::ParseBasisSize(var.hf_orbitals.value()), orbitals_to_update);
+        }
+    }, basis_config);
 }
 
 void BasisGenerator::Orthogonalise(pOrbital current) const

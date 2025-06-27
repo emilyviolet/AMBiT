@@ -1,3 +1,4 @@
+#include "Basis/BasisConfig.h"
 #include "Include.h"
 #include "TimesRBasis.h"
 #include "BasisGenerator.h"
@@ -13,6 +14,12 @@ namespace Ambit
 // This file contains the basis creation function from BasisGenerator as well as CustomBasis
 pOrbitalMap BasisGenerator::GenerateXRExcited(const std::vector<int>& max_pqn)
 {
+    // We only call this function if using TimesR Basis, so should be fine to cast the config
+    // object to a pointer to the XRBasisConfig variant (since this is what it is guaranteed to
+    // hold at this point)
+    // TODO: Would really like to make this a unique_ptr but this currently doesn't seem to be
+    // possible with std::get_if :(
+    auto xr_config = std::get_if<XRBasisConfig>(&basis_config);
     pOrbitalMap excited(new OrbitalMap(lattice));
 
     if(!max_pqn.size())
@@ -32,22 +39,27 @@ pOrbitalMap BasisGenerator::GenerateXRExcited(const std::vector<int>& max_pqn)
     std::vector<XRInstruction> xRinstructions;
     std::vector<NonRelInfo> HFinstructions;
 
-    unsigned int numcustomorbitals = user_input.vector_variable_size("Basis/CustomOrbitals");
-    for(unsigned int i = 0; i < numcustomorbitals; i++)
+    if(xr_config->custom_orbitals)
     {
-        std::vector<std::string> line;
-        std::string trimmed = boost::algorithm::trim_copy(user_input("Basis/CustomOrbitals", "", i));
-        boost::algorithm::split(line, trimmed, boost::is_any_of(" -"), boost::token_compress_on);
+        auto custom_orbitals = xr_config->custom_orbitals.value();
+        unsigned numcustomorbitals = custom_orbitals.size();
+        for(unsigned int i = 0; i < numcustomorbitals; i++)
+        {
+            std::vector<std::string> line;
+            std::string trimmed = boost::algorithm::trim_copy(custom_orbitals[i]);
+            boost::algorithm::split(line, trimmed, boost::is_any_of(" -"), boost::token_compress_on);
 
-        NonRelInfo nrcurrent = ConfigurationParser::ParseOrbital(line[0]);
-        if(line.size() == 1)
-            HFinstructions.push_back(nrcurrent);
-        else if (line.size() == 3)
-        {   NonRelInfo nrprev = ConfigurationParser::ParseOrbital(line[2]);
-            xRinstructions.push_back(std::make_tuple(nrcurrent, line[1], nrprev));
-        }
-        else
-        {   *errstream << "Input error: CustomOrbitals: " << user_input("Basis/CustomOrbitals", "", i) << '\n';
+            NonRelInfo nrcurrent = ConfigurationParser::ParseOrbital(line[0]);
+            if(line.size() == 1)
+                HFinstructions.push_back(nrcurrent);
+            else if (line.size() == 3)
+            {   NonRelInfo nrprev = ConfigurationParser::ParseOrbital(line[2]);
+                xRinstructions.push_back(std::make_tuple(nrcurrent, line[1], nrprev));
+            }
+            else
+            {   
+                *errstream << "Input error: CustomOrbitals: " << custom_orbitals[i] << '\n';
+            }
         }
     }
 
@@ -91,9 +103,9 @@ pOrbitalMap BasisGenerator::GenerateXRExcited(const std::vector<int>& max_pqn)
     HartreeFocker HF_Solver(ode_solver);
 
     // Do HF orbitals first. This ensures the lattice is large enough and that the starting levels exist.
-    std::string hf_valence_states = user_input("Basis/HFOrbitals", "");
-    if(!hf_valence_states.empty())
+    if(xr_config->hf_orbitals)
     {
+        std::string hf_valence_states = xr_config->hf_orbitals.value();
         pOrbitalMap hf_valence = GenerateHFExcited(ConfigurationParser::ParseBasisSize(hf_valence_states));
         for(auto porb: *hf_valence)
             excited->AddState(porb.second);

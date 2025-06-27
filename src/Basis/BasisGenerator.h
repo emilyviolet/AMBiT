@@ -8,9 +8,8 @@
 #include "HartreeFock/NucleusDecorator.h"
 #include "HartreeFock/HartreeY.h"
 #include "MBPT/BruecknerDecorator.h"
+#include "MBPT/MBPTConfig.h"
 #include "OrbitalManager.h"
-#include "Specification/Specification.h"
-#include "Universal/LatticeConfig.h"
 
 namespace Ambit
 {
@@ -22,7 +21,7 @@ namespace Ambit
 class BasisGenerator
 {
 public:
-    BasisGenerator(pLattice lat, MultirunOptions& userInput, HFConfig hf_config, BasisConfig basis_config, pPhysicalConstant physical_constant = nullptr);
+    BasisGenerator(pLattice lat, HFConfig hf_config, BasisConfig basis_config, pPhysicalConstant physical_constant = nullptr);
     virtual ~BasisGenerator();
 
     /** Generate core orbitals. If open_shell_core is supplied, then use this as a starting approximation.
@@ -50,7 +49,7 @@ public:
         PRE: this should only be used after GenerateBasis() or RecreateBasis(), and
              brueckner should wrap open-core hf operator.
      */
-    virtual void CreateBruecknerOrbitals(pBruecknerDecorator brueckner);
+    virtual void CreateBruecknerOrbitals(pBruecknerDecorator brueckner, MBPTConfig mbpt_config);
 
     /** Get open-shell Hartree-Fock operator. */
     virtual pHFOperatorConst GetOpenHFOperator() const { return hf; }
@@ -141,7 +140,6 @@ protected:
 
 protected:
 
-    MultirunOptions& user_input;
     BasisConfig basis_config;
     HFConfig hf_config;
     pPhysicalConstant physical_constant;

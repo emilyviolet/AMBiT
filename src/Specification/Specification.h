@@ -88,13 +88,13 @@ struct GlobalSpecification {
     std::vector<std::string> basis_include_valence;
     std::vector<std::string> basis_exclude_valence;
     std::optional<std::string> basis_residue;
-    std::optional<std::string> basis_inject_orbitals;
+    std::optional<std::vector<std::string>> basis_inject_orbitals;
     bool basis_reorthogonalise = false;
     bool basis_hf = false;
     bool basis_bspline = true;
     bool basis_xr = false;
     std::optional<std::string> basis_hf_orbitals;
-    std::optional<std::string> basis_custom_orbitals;
+    std::optional<std::vector<std::string> > basis_xr_custom_orbitals;
     // Basis/BSpline
     double basis_bspline_rmax = 0; 
     double basis_bspline_r0 = 0;
@@ -145,7 +145,7 @@ struct GlobalSpecification {
     std::pair<double, double> ci_smallside_configuration_average_energy_range;
     // MBPT
     std::optional<std::string> mbpt_basis;
-    std::string mbpt_energy_denom_orbitals;
+    std::optional<std::string> mbpt_energy_denom_orbitals;
     bool mbpt_use_valence;
     bool mbpt_no_core;
     bool mbpt_use_subtraction;
@@ -164,6 +164,7 @@ struct GlobalSpecification {
     std::vector<double> mbpt_brueckner_energy_scaling;
     bool mbpt_brueckner_use_lower = false;
     bool mbpt_brueckner_use_lower_lower = false;
+    bool mbpt_brueckner_excited = false;
 
 
     LatticeConfig getLatticeConfig() const;

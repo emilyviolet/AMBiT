@@ -1,10 +1,9 @@
+#include "BasisConfig.h"
 #include "BasisGenerator.h"
 #include "BSplineBasis.h"
 #include "Include.h"
 #include "Universal/SpinorFunction.h"
-#include "Universal/MathConstant.h"
 #include "Universal/PhysicalConstant.h"
-#include "Atom/MultirunOptions.h"
 #include <Eigen/Eigen>
 #include <gsl/gsl_bspline.h>
 
@@ -13,6 +12,12 @@ namespace Ambit
 // This file contains B-spline routines from BasisGenerator as well as BSplineBasis
 pOrbitalMap BasisGenerator::GenerateBSplines(const std::vector<int>& max_pqn)
 {
+    // We only call this function if using BSplines, so should be fine to cast the config object to
+    // a pointer to the BSplineBasisConfig variant (since this is what it is guaranteed to hold at
+    // this point)
+    // TODO: Would really like to make this a unique_ptr but this currently doesn't seem to be
+    // possible with std::get_if :(
+    auto bspline_config = std::get_if<BSplineBasisConfig>(&basis_config);
     pOrbitalMap excited(new OrbitalMap(lattice));
 
     if(!max_pqn.size())
@@ -21,19 +26,11 @@ pOrbitalMap BasisGenerator::GenerateBSplines(const std::vector<int>& max_pqn)
     bool debug = DebugOptions.OutputHFExcited();
 
     // Get spline type and parameters
-    SplineType spline_type = SplineType::Reno;
-    std::string spline_type_string = user_input("Basis/BSpline/SplineType", "Reno");
-    if(spline_type_string.compare("Reno") == 0 || spline_type_string.compare("DKB") == 0)
-        spline_type = SplineType::Reno;
-    else if(spline_type_string.compare("Vanderbilt") == 0)
-        spline_type = SplineType::Vanderbilt;
-    else if(spline_type_string.compare("NotreDame") == 0 || spline_type_string.compare("Johnson") == 0)
-        spline_type = SplineType::NotreDame;
-
-    int n = user_input("Basis/BSpline/N", 40);
-    int k = user_input("Basis/BSpline/K", 7);
-    double rmax = user_input("Basis/BSpline/Rmax", lattice->MaxRealDistance());
-    double dr0  = user_input("Basis/BSpline/R0", 0.0);
+    auto spline_type = bspline_config->spline_type;
+    unsigned n = bspline_config->N;
+    unsigned k = bspline_config->K;
+    double rmax = bspline_config->RMax;
+    double dr0 = bspline_config->R0;
 
     if(rmax > lattice->MaxRealDistance())
         lattice->resize(rmax);

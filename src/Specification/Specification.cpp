@@ -93,7 +93,7 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"Basis/--bspline-basis",   &GlobalSpecification::basis_bspline},
     {"Basis/--xr-basis",        &GlobalSpecification::basis_xr},
     {"Basis/HFOrbitals",        &GlobalSpecification::basis_hf_orbitals},
-    {"Basis/CustomOrbitals",    &GlobalSpecification::basis_custom_orbitals},
+    {"Basis/XR/CustomOrbitals",    &GlobalSpecification::basis_xr_custom_orbitals},
     // Basis/BSpline
     {"Basis/BSpline/Rmax",          &GlobalSpecification::basis_bspline_rmax},
     {"Basis/BSpline/R0",            &GlobalSpecification::basis_bspline_r0},
@@ -159,7 +159,7 @@ BasisConfig GlobalSpecification::getBasisConfig() const {
         config.residue = basis_residue;
         config.inject_orbitals = basis_inject_orbitals;
         config.hf_orbitals = basis_hf_orbitals;
-        config.custom_orbitals = basis_custom_orbitals;
+        config.custom_orbitals = basis_xr_custom_orbitals;
         config.reorthogonalise = basis_reorthogonalise;
 
         return(config);
