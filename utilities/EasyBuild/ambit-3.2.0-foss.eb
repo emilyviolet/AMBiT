@@ -1,0 +1,44 @@
+# EasyConfig file for AMBiT with FOSS toolchain
+name = 'AMBiT'
+version = '3.2.0'
+homepage = "https://github.com/drjuls/AMBiT/"
+description = """AMBiT is a high-precision atomic structure software package based on the
+Configuration Interaction + Many-Body Perturbation Theory (CI+MBPT) method and is developed and
+maintained by the Julian Berengut Group at the University of New South Wales in Sydney, Australia.
+While we are contactable by email, we would prefer for bug reports and feature requests to be made
+on this GitHub page.
+"""
+
+# GNU toolchain
+toolchain = {'name': 'foss', 'version': '2024.a'}
+toolchainopts = {'openmp': True, 'usempi': True}
+
+# Start with a generic CMake Easyblock
+easyblock = 'CMakeMake'
+
+# Source archive from GitHub
+source_urls = [
+    "https://github.com/drjuls/AMBiT/archive/refs/tags/"
+]
+checksums = {"v3.2.0.tar.gz": "bf65f08d7a66873425bd9431b8af541c4c12ba47ecf76a90048b0daa416ac3b2"}
+
+sources = ['v%(version)s.tar.gz']
+sources = ['v%(version)s.tar.gz']
+https://github.com/drjuls/AMBiT/archive/refs/tags/v3.2.0.tar.gz
+
+# Dependencies. Keep it simple, for now
+builddependencies = [
+    ('CMake', '3.26.3')
+]
+
+Dependencies = [
+    ('GSL', '2.8'),
+    ('Eigen', '3.4.0'),
+    ('Boost', '1.85'),
+    ('OpenBLAS', '0.3.29'),
+    ('Abseil', '20240722.0')
+]
+
+configopts = ["-DCMAKE_INSTALL_PREFIX='%(installdir)s'", "-DUSE_OPENMP=yes",
+              "-DUSE_MPI=yes", "-DUSE_OPENBLAS=yes"]
+moduleclass = 'phys'
