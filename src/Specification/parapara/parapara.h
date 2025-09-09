@@ -3,17 +3,18 @@
 #include <charconv>
 #include <functional>
 #include <iomanip>
+#include <initializer_list>
 #include <iterator>
 #include <limits>
 #include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <sstream>
 #include <string_view>
 #include <typeindex>
 #include <unordered_map>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #if __cplusplus >=202002L
@@ -23,8 +24,10 @@
 #if __cplusplus >=202302L && defined(__cpp_lib_expected) && __cpp_lib_expected>=202211L
 #include <expected>
 #else
-#include "expected.h"
+#include "parapara/expected.h"
 #endif
+
+#include <iostream>
 
 namespace parapara {
 
@@ -41,13 +44,15 @@ constexpr inline int version_patch = 2;
 //
 // Section II: Reader and writer classes
 //
-// Section III: Reader and writer helper functions, default reader and writer
+// Section III: Specialised value types for use with parapara: defaulted<T>
 //
-// Section IV: Parameter specifications, parameter sets
+// Section IV: Reader and writer helper functions, default reader and writer
 //
-// Section V: Validation helpers
+// Section V: Parameter specifications, parameter sets
 //
-// Section VI: Importers and exporters
+// Section VI: Validation helpers
+//
+// Section VII: Importers and exporters
 
 // Preamble
 // --------
@@ -651,8 +656,225 @@ struct writer {
     }
 };
 
+// III. Specialised value types for use with parapara: defaulted<T>
+// ================================================================
 
-// III. Reader/writer helpers, default reader and writer definitions
+// defaulted<X> represents a value which is either one that is assigned or emplaced, or else a default value set
+// at initialization.
+//
+// defaulted<X>::value() returns the assigned value if one has been assigned, or else the default value.
+// Setting the assigned value is performed defaulted<X>::emplace() or defaulted<X>::operator=(). When the
+// rhs of the assignment is an empty std::optional or unassigned defaulted value, the lhs is reset and
+// importantly, the default value is left unchanged.
+//
+// The assigned state is removed with defaulted<X>::reset(); subsequent invocations to defaulted<X>::value()
+// will then return the default value.
+
+template <typename T>
+struct defaulted;
+
+namespace detail {
+
+template <typename T>
+struct is_defaulted_: std::false_type {};
+
+template <typename T>
+struct is_defaulted_<defaulted<T>>: std::true_type {};
+
+}
+
+template <typename T>
+using is_defaulted = detail::is_defaulted_<std::remove_cv_t<std::remove_reference_t<T>>>;
+
+template <typename T>
+inline constexpr bool  is_defaulted_v = is_defaulted<T>::value;
+
+template <typename T>
+struct defaulted {
+private:
+    std::optional<T> assigned_;
+    T default_{};
+
+public:
+    typedef T value_type;
+
+    // Construct with value-initialized default.
+
+    constexpr defaulted() noexcept(std::is_nothrow_default_constructible_v<T>) {};
+
+    // Construct with default in-place.
+
+    template <typename... As>
+    constexpr explicit defaulted(std::in_place_t, As&&... as):
+        default_(std::forward<As>(as)...)
+    {}
+
+    template <typename U, typename... As>
+    constexpr explicit defaulted(std::in_place_t, std::initializer_list<U> il, As&&... as):
+        default_(il, std::forward<As>(as)...)
+    {}
+
+    // Copy, move constructors.
+
+    constexpr defaulted(const defaulted& d) noexcept(std::is_nothrow_copy_constructible_v<T>):
+        assigned_(d.assigned_),
+        default_(d.default_)
+    {}
+
+    constexpr defaulted(defaulted&& d) noexcept(std::is_nothrow_move_constructible_v<T>):
+        assigned_(std::move(d.assigned_)),
+        default_(std::move(d.default_))
+    {}
+
+    // Construct with default value of compatible type.
+
+    template <typename U,
+        std::enable_if_t<!is_defaulted_v<U>, int> = 0,
+        std::enable_if_t<std::is_constructible_v<T, U&&>, int> = 0
+    >
+    constexpr explicit defaulted(U&& u) noexcept(std::is_nothrow_constructible_v<T, U&&>): default_(std::forward<U>(u)) {}
+
+    // Copy from defaulted<U> of compatible type.
+
+    template <typename U,
+        std::enable_if_t<std::is_convertible_v<U, T>, int> = 0
+    >
+    constexpr defaulted(const defaulted<U>& du) noexcept(std::is_nothrow_constructible_v<T, U>):
+        assigned_(du.assigned_),
+        default_(du.default_)
+    {}
+
+    template <typename U,
+        std::enable_if_t<!std::is_convertible_v<U, T>, int> = 0,
+        std::enable_if_t<std::is_constructible_v<T, U>, int> = 0
+    >
+    constexpr explicit defaulted(const defaulted<U>& du) noexcept(std::is_nothrow_constructible_v<T, U>):
+        assigned_(du.assigned_),
+        default_(du.default_)
+    {}
+
+    // Move from defaulted<U> of compatible type.
+
+    template <typename U,
+        std::enable_if_t<std::is_convertible_v<U, T>, int> = 0
+    >
+    constexpr defaulted(defaulted<U>&& du) noexcept(std::is_nothrow_constructible_v<T, U&&>):
+        assigned_(std::move(du.assigned_)),
+        default_(std::move(du.default_))
+    {}
+
+    template <typename U,
+        std::enable_if_t<!std::is_convertible_v<U, T>, int> = 0,
+        std::enable_if_t<std::is_constructible_v<T, U&&>, int> = 0
+    >
+    constexpr explicit defaulted(defaulted<U>&& du) noexcept(std::is_nothrow_constructible_v<T, U&&>):
+        assigned_(std::move(du.assigned_)),
+        default_(std::move(du.default_))
+    {}
+
+    // Copy, move assignments; note that the default_value of the argument is ignored.
+
+    defaulted<T>& operator=(const defaulted& dt) {
+        assigned_ = dt.assigned_;
+        return *this;
+    }
+
+    defaulted<T>& operator=(defaulted&& dt) {
+        assigned_ = std::move(dt.assigned_);
+        return *this;
+    }
+
+    // Assignment from value.
+
+    template <typename U,
+        std::enable_if_t<!is_defaulted_v<U>, int> = 0,
+        std::enable_if_t<std::is_assignable_v<T&, U>, int> = 0
+    >
+    defaulted<T>& operator=(U&& u) {
+        assigned_ = std::forward<U>(u);
+        return *this;
+    }
+
+    // Assignment from compatible defaulted<U>; note that the default_value of the argument is ignored.
+
+    template <typename U, std::enable_if_t<!std::is_same_v<T, U> && std::is_assignable_v<T&, U>, int> = 0>
+    defaulted<T>& operator=(const defaulted<U>& du) {
+        std::cout << "defaulted::copy assignment from defaulted\n";
+        assigned_ = du.assigned_;
+        return *this;
+    }
+
+    template <typename U, std::enable_if_t<!std::is_same_v<T, U> && std::is_assignable_v<T&, U>, int> = 0>
+    defaulted<T>& operator=(defaulted<U>&& du) {
+        assigned_ = std::move(du.assigned_);
+        return *this;
+    }
+
+    // Assignment from std::optional<U>.
+
+    template <typename U, std::enable_if_t<std::is_assignable_v<T&, U>, int> = 0>
+    defaulted<T>& operator=(const std::optional<U>& ou) {
+        assigned_ = ou;
+        return *this;
+    }
+
+    template <typename U, std::enable_if_t<std::is_assignable_v<T&, U>, int> = 0>
+    defaulted<T>& operator=(std::optional<U>&& ou) {
+        assigned_ = std::move(ou);
+        return *this;
+    }
+
+    // Value access.
+
+    const T& value() const & { return assigned_? assigned_.value(): default_; }
+    T&& value() && { return assigned_? std::move(assigned_).value(): std::move(default_); }
+    const T&& value() const && { return assigned_? std::move(assigned_).value(): std::move(default_); }
+
+    T& default_value() & { return default_; }
+    const T& default_value() const & { return default_; }
+    T&& default_value() && { return std::move(default_); }
+    const T&& default_value() const && { return std::move(default_); }
+
+    // Reset assigned state.
+
+    void reset() noexcept { assigned_.reset(); }
+
+    // Construct assigned value or default value in-place.
+
+    template <typename... As>
+    void emplace(As&&... as) {
+        assigned_.emplace(std::forward<As>(as)...);
+    }
+
+    template <typename U, typename... As,
+        std::enable_if_t<std::is_constructible_v<T, std::initializer_list<U>&, As&&...>, int> = 0
+    >
+    void emplace(std::initializer_list<U> il, As&&... as) {
+        assigned_.emplace(il, std::forward<As>(as)...);
+    }
+
+    template <typename... As>
+    void emplace_default(As&&... as) {
+        default_.~T();
+        ::new ((void*)&default_) T(std::forward<As>(as)...);
+    }
+
+    template <typename U, typename... As,
+        std::enable_if_t<std::is_constructible_v<T, std::initializer_list<U>&, As&&...>, int> = 0
+    >
+    void emplace_default(std::initializer_list<U> il, As&&... as) {
+        default_.~T();
+        ::new ((void*)&default_) T(il, std::forward<As>(as)...);
+    }
+
+    // Check assignment status
+
+    constexpr bool is_assigned() const { return assigned_.has_value(); }
+    constexpr bool is_default() const { return !is_assigned(); }
+};
+
+
+// IV. Reader/writer helpers, default reader and writer definitions
 // =================================================================
 
 // If C++20 is targetted instead of C++17, these ad hoc type traits and std::enable_if guards
@@ -716,10 +938,10 @@ struct read_dsv {
 
     explicit read_dsv(std::function<hopefully<value_type> (std::string_view)> read_field,
                       std::string delim=",", bool skip_ws = true):
-        read_field(std::move(read_field)), delim(delim), skip_ws(skip_ws) {}
+        read_field(std::move(read_field)), delim(std::move(delim)), skip_ws(skip_ws) {}
 
     explicit read_dsv(std::string delim=",", bool skip_ws = true):
-        read_field{}, delim(delim), skip_ws(skip_ws) {}
+        read_field{}, delim(std::move(delim)), skip_ws(skip_ws) {}
 
     hopefully<C> operator()(std::string_view v, const reader<std::string_view>& rdr) const {
         constexpr auto npos = std::string_view::npos;
@@ -738,11 +960,37 @@ struct read_dsv {
                 else break;
             }
             else {
-                return unexpected(std::move(hf.error()));
+                return unexpected(std::move(hf).error());
             }
         }
 
         return v.empty()? C{}: C{&fields.front(), &fields.front()+fields.size()};
+    }
+};
+
+// - Read a defaulted<X> value (for default-constructible X) with a specific representation indicating unassigned.
+
+template <typename X>
+struct read_defaulted {
+    std::function<hopefully<X> (std::string_view)> read_field; // if empty, use supplied reader
+    const std::string unassigned_repn = "";
+
+    explicit read_defaulted(std::function<hopefully<X> (std::string_view)> read_field, std::string unassigned_repn = ""):
+        read_field(std::move(read_field)), unassigned_repn(std::move(unassigned_repn))
+    {}
+
+    explicit read_defaulted(std::string unassigned_repn = ""):
+        read_field{}, unassigned_repn(std::move(unassigned_repn))
+    {}
+
+    hopefully<defaulted<X>> operator()(std::string_view v, const reader<std::string_view>& rdr) const {
+        if (v==unassigned_repn) return defaulted<X>{};
+        else if (auto x = read_field? read_field(v): rdr.read<X>(v)) {
+            defaulted<X> r{};
+            r = std::move(x).value();
+            return r;
+        }
+        else return unexpected(std::move(x).error());
     }
 };
 
@@ -786,7 +1034,7 @@ template <typename C,
           std::enable_if_t<has_value_type_v<C>, int> = 0>
 struct write_dsv {
     using value_type = typename C::value_type;
-    std::function<std::string (const value_type&)> write_field; // if empty, use supplied writer
+    std::function<hopefully<std::string> (const value_type&)> write_field; // if empty, use supplied writer
     std::string delim;      // field separator
 
     explicit write_dsv(std::function<hopefully<std::string> (const value_type&)> write_field, std::string delim=","):
@@ -818,11 +1066,37 @@ struct write_dsv {
     }
 };
 
-namespace detail {
+// - Write a defaulted<X> value with a specific representation indicating unassigned.
 
-// The default reader and writer use charconv for numeric scalars, the simple read_string/write_string,
-// the true/false represenation for bool with read_bool_alpha/write_bool_alpha, and comma-delimited 
-// and comma-delimmited reader for numeric vectors.
+template <typename X>
+struct write_defaulted {
+    std::function<hopefully<std::string> (const X&)> write_field; // if empty, use supplied reader
+    const std::string unassigned_repn = "";
+
+    explicit write_defaulted(std::function<hopefully<std::string> (const X&)> write_field, std::string unassigned_repn = ""):
+        write_field(std::move(write_field)), unassigned_repn(std::move(unassigned_repn))
+    {}
+
+    explicit write_defaulted(std::string unassigned_repn = ""):
+        write_field{}, unassigned_repn(std::move(unassigned_repn))
+    {}
+
+    hopefully<std::string> operator()(const defaulted<X>& v, const writer<std::string>& wtr) const {
+        if (!v.is_assigned()) return unassigned_repn;
+        else if (auto x = write_field? write_field(v.value()): wtr.write(v.value())) return x.value();
+        else return unexpected(std::move(x).error());
+    }
+};
+
+// The default reader and writers support the following types:
+//
+//    * Standard (but not extended) arithmetic types, using charconv.
+//    * Boolean, using "true" for true and "false" for false.
+//    * Vectors of the standard arithmetic types, represented as comma-separated values.
+//    * defaulted<X> for the standard arithmetic types X and boolean, with unassigned represented by the empty string.
+//    * std::string, represented verbatim.
+
+namespace detail {
 
 inline reader<std::string_view> make_default_reader() {
     return reader<std::string_view>(
@@ -838,7 +1112,6 @@ inline reader<std::string_view> make_default_reader() {
         read_cc<double>,
         read_cc<long double>,
         read_bool_alpha,
-        read_string,
         read_dsv<std::vector<short>>{},
         read_dsv<std::vector<unsigned short>>{},
         read_dsv<std::vector<int>>{},
@@ -849,7 +1122,20 @@ inline reader<std::string_view> make_default_reader() {
         read_dsv<std::vector<unsigned long long>>{},
         read_dsv<std::vector<float>>{},
         read_dsv<std::vector<double>>{},
-        read_dsv<std::vector<long double>>{}
+        read_dsv<std::vector<long double>>{},
+        read_defaulted<short>{},
+        read_defaulted<unsigned short>{},
+        read_defaulted<int>{},
+        read_defaulted<unsigned int>{},
+        read_defaulted<long>{},
+        read_defaulted<unsigned long>{},
+        read_defaulted<long long>{},
+        read_defaulted<unsigned long long>{},
+        read_defaulted<float>{},
+        read_defaulted<double>{},
+        read_defaulted<long double>{},
+        read_defaulted<bool>{},
+        read_string
     );
 }
 
@@ -876,7 +1162,6 @@ inline writer<std::string> make_default_writer() {
         write_cc<double>,
         write_cc<long double>,
         write_bool_alpha,
-        write_string,
         write_dsv<std::vector<short>>{},
         write_dsv<std::vector<unsigned short>>{},
         write_dsv<std::vector<int>>{},
@@ -887,7 +1172,20 @@ inline writer<std::string> make_default_writer() {
         write_dsv<std::vector<unsigned long long>>{},
         write_dsv<std::vector<float>>{},
         write_dsv<std::vector<double>>{},
-        write_dsv<std::vector<long double>>{}
+        write_dsv<std::vector<long double>>{},
+        write_defaulted<short>{},
+        write_defaulted<unsigned short>{},
+        write_defaulted<int>{},
+        write_defaulted<unsigned int>{},
+        write_defaulted<long>{},
+        write_defaulted<unsigned long>{},
+        write_defaulted<long long>{},
+        write_defaulted<unsigned long long>{},
+        write_defaulted<float>{},
+        write_defaulted<double>{},
+        write_defaulted<long double>{},
+        write_defaulted<bool>{},
+        write_string
     );
 }
 
@@ -1007,7 +1305,7 @@ struct specification {
         assign_impl_(
             [field_ptr = field_ptr, delegate_assign_impl = delegate.assign_impl_] (Record& record, std::any value) -> hopefully<void>
             {
-                return delegate_assign_impl(record.*field_ptr, value);
+                return delegate_assign_impl(record.*field_ptr, std::move(value));
             }),
         retrieve_impl_(
             [field_ptr = field_ptr, delegate_retrieve_impl = delegate.retrieve_impl_] (const Record& record) -> any_ptr {
@@ -1045,7 +1343,7 @@ struct specification {
     // Given a std::any object holding a value of the field type, validate and assign to field in record.
 
     hopefully<void> assign(Record& record, std::any value) const {
-        return assign_impl_(record, value).transform_error(with_ctx_key(key));
+        return assign_impl_(record, std::move(value)).transform_error(with_ctx_key(key));
     }
 
     // Return const pointer to the value of the field in record as an any_ptr.
@@ -1115,7 +1413,7 @@ template <typename Record,
 std::vector<failure> validate(const Record& record, const C& specs) {
     std::vector<failure> failures;
     for (const auto& spec: specs) {
-        if (auto h = spec.validate(record); !h) failures.push_back(std::move(h.error()));
+        if (auto h = spec.validate(record); !h) failures.push_back(std::move(h).error());
     }
     return failures;
 }
@@ -1127,11 +1425,11 @@ std::vector<failure> validate(const Record& record, const C& specs) {
 // canonicalizer.
 
 template <typename Record>
-struct specification_set {
-    specification_set() = default;
+struct specification_map {
+    specification_map() = default;
 
     template <typename C, std::enable_if_t<std::is_assignable_v<specification<Record>&, value_type_t<C>>, int> = 0>
-    specification_set(const C& specs, std::function<std::string (std::string_view)> cify = {}):
+    specification_map(const C& specs, std::function<std::string (std::string_view)> cify = {}):
         canonicalize_(cify)
     {
         for (specification<Record> s: specs) insert(std::move(s));
@@ -1171,11 +1469,11 @@ struct specification_set {
         else return unrecognized_key(key);
     }
 
-    // Can also do the validation operation above from a specification_set.
+    // Can also do the validation operation above from a specification_map.
     std::vector<failure> validate(const Record& record) const {
         std::vector<failure> failures;
         for (const auto& [_, spec]: set_) {
-            if (auto h = spec.validate(record); !h) failures.push_back(std::move(h.error()));
+            if (auto h = spec.validate(record); !h) failures.push_back(std::move(h).error());
         }
         return failures;
     }
@@ -1186,13 +1484,13 @@ private:
 };
 
 template <typename X>
-specification_set(X&) -> specification_set<typename value_type_t<X>::record_type>;
+specification_map(X&) -> specification_map<typename value_type_t<X>::record_type>;
 
 template <typename X>
-specification_set(X&, std::function<std::string (std::string_view)>) -> specification_set<typename value_type_t<X>::record_type>;
+specification_map(X&, std::function<std::string (std::string_view)>) -> specification_map<typename value_type_t<X>::record_type>;
 
 
-// V. Validation helpers
+// VI. Validation helpers
 // =====================
 //
 // The validator passed to the specification constructor can be any functional that takes a field value
@@ -1244,11 +1542,11 @@ auto less_than(Value v, std::string constraint = "value less than upper bound") 
     return validator([v = std::move(v)](auto x) { return x<v; }, std::move(constraint));
 }
 
-auto nonzero(std::string constraint = "value must be non-zero") {
+auto inline nonzero(std::string constraint = "value must be non-zero") {
     return validator([](auto x) { return x!=0; }, std::move(constraint));
 }
 
-auto nonempty(std::string constraint = "value must be non-empty") {
+auto inline nonempty(std::string constraint = "value must be non-empty") {
     return validator([](auto x) { return !x.empty(); }, std::move(constraint));
 }
 
@@ -1261,7 +1559,7 @@ auto operator&=(V1 v1, V2 v2) {
 }
 
 
-// VI. Importers and exporters
+// VII. Importers and exporters
 // ====================================
 //
 // import_k_eq_v:
@@ -1308,7 +1606,7 @@ auto operator&=(V1 v1, V2 v2) {
 // or key/key-value records.
 
 template <typename Record>
-hopefully<void> import_k_eq_v(Record &rec, const specification_set<Record>& specs, const reader<std::string_view>& rdr,
+hopefully<void> import_k_eq_v(Record &rec, const specification_map<Record>& specs, const reader<std::string_view>& rdr,
                               std::string_view text, std::string eq_token = "=")
 {
     constexpr auto npos = std::string_view::npos;
@@ -1338,7 +1636,7 @@ hopefully<void> import_k_eq_v(Record &rec, const specification_set<Record>& spec
 
 
 template <typename Record>
-hopefully<void> import_k_eq_v(Record &rec, const specification_set<Record>& specs,
+hopefully<void> import_k_eq_v(Record &rec, const specification_map<Record>& specs,
                               std::string_view text, std::string eq_token = "=")
 {
     return import_k_eq_v(rec, specs, default_reader(), text, eq_token);
@@ -1446,7 +1744,7 @@ struct ini_style_importer {
 
     // Run run_once until eof or error.
     template <typename Record>
-    hopefully<void> run(Record& rec, const specification_set<Record>& specs,
+    hopefully<void> run(Record& rec, const specification_map<Record>& specs,
                         const reader<std::string_view>& rdr, std::string secsep = "/")
     {
         while (*this) {
@@ -1457,7 +1755,7 @@ struct ini_style_importer {
     }
 
     template <typename Record>
-    hopefully<void> run(Record& rec, const specification_set<Record>& specs, std::string secsep = "/") {
+    hopefully<void> run(Record& rec, const specification_map<Record>& specs, std::string secsep = "/") {
         return run(rec, specs, default_reader(), secsep);
     }
 
@@ -1468,7 +1766,7 @@ struct ini_style_importer {
     // Otherwise return a failure based on the current context.
 
     template <typename Record>
-    hopefully<ini_record_kind> run_one(Record& rec, const specification_set<Record>& specs,
+    hopefully<ini_record_kind> run_one(Record& rec, const specification_map<Record>& specs,
                                        const reader<std::string_view>& rdr, std::string secsep = "/")
     {
         separator_ = std::move(secsep);
@@ -1477,9 +1775,10 @@ struct ini_style_importer {
         while (in_) {
             std::getline(in_, ctx_.record);
             ++ctx_.nr;
-            auto [kind, tokens] = parser_(std::string_view(ctx_.record));
+            ini_record ir = parser_(std::string_view(ctx_.record));
+            auto& tokens = ir.tokens;
 
-            switch (kind) {
+            switch (ir.kind) {
             case ini_record_kind::section:
                 section_ = tokens[0].first;
                 ctx_.cindex = tokens[0].second;
@@ -1529,7 +1828,7 @@ struct ini_style_importer {
     }
 
     template <typename Record>
-    hopefully<ini_record_kind> run_one(Record& rec, const specification_set<Record>& specs, std::string secsep = "/") {
+    hopefully<ini_record_kind> run_one(Record& rec, const specification_map<Record>& specs, std::string secsep = "/") {
         return run_one(rec, specs, default_reader(), secsep);
     }
 
@@ -1545,13 +1844,13 @@ private:
 using ini_importer = ini_style_importer<simple_ini_parser>;
 
 template <typename Record>
-hopefully<void> import_ini(Record& rec, const specification_set<Record>& specs, const reader<std::string_view>& rdr,
+hopefully<void> import_ini(Record& rec, const specification_map<Record>& specs, const reader<std::string_view>& rdr,
                            std::istream& in, source_context ctx, std::string secsep = "/") {
     return ini_importer{in, std::move(ctx)}.run(rec, specs, rdr, secsep);
 }
 
 template <typename Record>
-hopefully<void> import_ini(Record& rec, const specification_set<Record>& specs, const reader<std::string_view>& rdr,
+hopefully<void> import_ini(Record& rec, const specification_map<Record>& specs, const reader<std::string_view>& rdr,
                            std::istream& in, std::string secsep = "/") {
     return ini_importer{in}.run(rec, specs, rdr, secsep);
 }
