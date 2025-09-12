@@ -42,6 +42,7 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND BUILD_TESTING)
   target_link_libraries(ambit_test PUBLIC hartreefock)
   target_link_libraries(ambit_test PUBLIC mbpt)
   target_link_libraries(ambit_test PUBLIC universal)
+  target_link_libraries(ambit_test PUBLIC specification)
 
   # External dependencies
   find_package(Eigen3 REQUIRED NO_MODULE)

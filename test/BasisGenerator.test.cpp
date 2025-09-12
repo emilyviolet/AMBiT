@@ -1,6 +1,7 @@
 #include "Basis/BasisGenerator.h"
 #include "gtest/gtest.h"
 #include "Include.h"
+#include "Specification/Specification.h"
 
 using namespace Ambit;
 
@@ -55,11 +56,15 @@ protected:
         "ShowLifetime = 1\n" +
         "ShowProbability = 1\n";
 
-        std::stringstream user_input_stream(user_input_string);
-        userInput = new MultirunOptions(user_input_stream, "//", "\n", ",");
-        userInput->SetRun(1);
+        specification = new GlobalSpecification;
+        // Can parse the user_input_string directly via parapara
+        std::string perr = importSpecificationKV(*specification, user_input_string);
+        if (!perr.empty()) {
+            *errstream << "importSpecificationKV:\n" << perr << std::endl;
+            exit(1);
+        }
 
-        core_generator = new BasisGenerator(lattice, *userInput);
+        core_generator = new BasisGenerator(lattice, *specification);
         core = core_generator->GenerateHFCore();
     }
 
@@ -69,21 +74,21 @@ protected:
     static void TearDownTestCase() {
         delete core_generator;
         core_generator = NULL;
-        delete userInput;
-        userInput = NULL;
+        delete specification;
+        specification = NULL;
     }
 
     // Some expensive resource shared by all tests.
     static pLattice lattice;
     static pCore core;
     static BasisGenerator* core_generator;
-    static MultirunOptions* userInput;
+    static GlobalSpecification* specification;
 };
 
 pLattice BasisGeneratorTester::lattice = pLattice();
 pCore BasisGeneratorTester::core = pCore();
 BasisGenerator* BasisGeneratorTester::core_generator = NULL;
-MultirunOptions* BasisGeneratorTester::userInput = NULL;
+GlobalSpecification* BasisGeneratorTester::specification = NULL;
 
 TEST_F(BasisGeneratorTester, StartCore)
 {
@@ -118,13 +123,9 @@ TEST_F(BasisGeneratorTester, BSplineBasis)
 
 TEST_F(BasisGeneratorTester, HFBasis)
 {
-    char* argv[2];
-    argv[0] = new char[50];
-    argv[0][0] = 0;
-    argv[1] = new char[50];
-    std::strcpy(argv[1], "Basis/--hf-basis");
-    MultirunOptions lineInput(2, argv, ",");
-    userInput->absorb(lineInput);
+    // Turn off BSplines and activate HF basis
+    specification->basis_bspline = false;
+    specification->basis_hf = true;
 
     DebugOptions.OutputHFExcited(true);
     pHFOperatorConst hf = core_generator->GetOpenHFOperator();

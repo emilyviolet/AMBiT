@@ -4,6 +4,7 @@
 #include "Configuration/NonRelConfiguration.h"
 #include "Configuration/RelativisticConfiguration.h"
 #include "HartreeFock/Core.h"
+#include "Specification/Specification.h"
 
 using namespace Ambit;
 

@@ -6,6 +6,7 @@
 #include "Universal/MathConstant.h"
 #include "HartreeFock/HartreeFocker.h"
 #include "HartreeFock/NucleusDecorator.h"
+#include "Specification/Specification.h"
 
 using namespace Ambit;
 

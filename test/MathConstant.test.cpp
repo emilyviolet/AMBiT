@@ -2,6 +2,7 @@
 #include "Universal/FornbergDifferentiator.h"
 #include "Include.h"
 #include "gtest/gtest.h"
+#include "Specification/Specification.h"
 
 using namespace Ambit;
 

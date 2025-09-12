@@ -95,11 +95,11 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
     hf = undressed_hf;
 
     // Add nuclear potential
-    double nuclear_radius = config_map["HF/NuclearRadius"];
+    double nuclear_radius = config_map["NuclearRadius"];
     if(nuclear_radius)
     {
         nucleus = std::make_shared<NucleusDecorator>(hf, coulomb, integrator);
-        double nuclear_thickness = config_map["HF/NuclearThickness"];
+        double nuclear_thickness = config_map["NuclearThickness"];
         nucleus->SetFermiParameters(nuclear_radius, nuclear_thickness);
         nucleus->SetCore(open_core);
         *outstream << "Nuclear RMS radius = " << nucleus->CalculateNuclearRMSRadius() << std::endl;
@@ -111,7 +111,7 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
     hartreeY = pHartreeY(new HartreeY(integrator, coulomb));
 
     // Add additional operators
-    double NuclearInverseMass = config_map["HF/NuclearInverseMass"];
+    double NuclearInverseMass = config_map["NuclearInverseMass"];
     if(NuclearInverseMass)
     {
         bool do_nms = config_map["HF/--nms"];

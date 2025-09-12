@@ -31,6 +31,10 @@ struct GlobalSpecification {
     bool ci_complete = false;
     bool no_ci = false;
     bool configuration_average = false;
+    double alpha_squared_variation = 0;
+    double nuclear_inverse_mass = 0;
+    double nuclear_radius = 0;
+    double nuclear_thickness = 0;
     // Lattice
     unsigned lattice_num_points = 0;
     double lattice_start_point = 0;
@@ -49,12 +53,6 @@ struct GlobalSpecification {
     bool hf_include_lower_mass = false;
     bool hf_local_exchange = false;
     double hf_xalpha = 1.0;
-    // NOTE: Moving AlphaSquared into HF specification since that's where it's used
-    double hf_alpha_squared_variation = 0;
-    // Also moving nuclear parameters
-    double hf_nuclear_inverse_mass = 0;
-    double hf_nuclear_radius = 0;
-    double hf_nuclear_thickness = 0;
     // HF/QED
     bool hf_do_qed = false; // Checks if the [HF/QED] section is defined
     bool hf_qed_uehling = false;

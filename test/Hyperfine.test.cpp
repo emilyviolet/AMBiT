@@ -11,6 +11,7 @@
 #include "MBPT/BruecknerDecorator.h"
 #include "MBPT/CoreMBPTCalculator.h"
 #include "ExternalField/RPAOperator.h"
+#include "Specification/Specification.h"
 
 using namespace Ambit;
 
@@ -30,11 +31,19 @@ TEST(HyperfineTester, Rb)
         "--hf-basis\n" +
         "ValenceBasis = 5s\n";
 
+    GlobalSpecification specification;
+    // Can parse the user_input_string directly via parapara
+    std::string perr = importSpecificationKV(specification, user_input_string);
+    if (!perr.empty()) {
+        *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+
     std::stringstream user_input_stream(user_input_string);
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, userInput);
+    BasisGenerator basis_generator(lattice, specification);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();
@@ -69,11 +78,19 @@ TEST(HyperfineTester, Na)
         "[MBPT]\n" +
         "Basis = 20spdf\n";
 
+    GlobalSpecification specification;
+    // Can parse the user_input_string directly via parapara
+    std::string perr = importSpecificationKV(specification, user_input_string);
+    if (!perr.empty()) {
+        *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+
     std::stringstream user_input_stream(user_input_string);
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, userInput);
+    BasisGenerator basis_generator(lattice, specification);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();
@@ -165,11 +182,19 @@ TEST(HyperfineTester, CsRPA)
         "--hf-basis\n" +
         "ValenceBasis = 6spd\n";
 
+    GlobalSpecification specification;
+    // Can parse the user_input_string directly via parapara
+    std::string perr = importSpecificationKV(specification, user_input_string);
+    if (!perr.empty()) {
+        *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+
     std::stringstream user_input_stream(user_input_string);
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, userInput);
+    BasisGenerator basis_generator(lattice, specification);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();

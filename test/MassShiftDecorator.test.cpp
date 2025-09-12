@@ -6,6 +6,7 @@
 #include "Universal/PhysicalConstant.h"
 #include "HartreeFock/HartreeFocker.h"
 #include "HartreeFock/ConfigurationParser.h"
+#include "Specification/Specification.h"
 
 using namespace Ambit;
 

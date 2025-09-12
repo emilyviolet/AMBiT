@@ -32,6 +32,10 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"--ci-complete",           &GlobalSpecification::ci_complete},
     {"--no-ci",                 &GlobalSpecification::no_ci},
     {"--configuration-average", &GlobalSpecification::configuration_average},
+    {"NuclearRadius",          &GlobalSpecification::nuclear_radius},
+    {"NuclearThickness",       &GlobalSpecification::nuclear_thickness},
+    {"NuclearInverseMass",     &GlobalSpecification::nuclear_inverse_mass},
+    {"AlphaSquaredVariation",     &GlobalSpecification::alpha_squared_variation},
     // Lattice
     {"Lattice/NumPoints",           &GlobalSpecification::lattice_num_points,    P::nonzero()},
     {"Lattice/StartPoint",          &GlobalSpecification::lattice_start_point,   positive},
@@ -50,10 +54,6 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"HF/--include-lower-mass",         &GlobalSpecification::hf_include_lower_mass},
     {"HF/--local-exchange",             &GlobalSpecification::hf_local_exchange},
     {"HF/Xalpha",                       &GlobalSpecification::hf_xalpha},
-    {"HF/AlphaSquaredVariation",        &GlobalSpecification::hf_alpha_squared_variation},
-    {"HF/NuclearInverseMass",           &GlobalSpecification::hf_nuclear_inverse_mass},
-    {"HF/NuclearRadius",                &GlobalSpecification::hf_nuclear_radius},
-    {"HF/NuclearThickness",             &GlobalSpecification::hf_nuclear_thickness},
     // HF/QED
     {"HF/QED",                          &GlobalSpecification::hf_do_qed},
     {"HF/QED/--uehling",                &GlobalSpecification::hf_qed_uehling},

@@ -3,6 +3,7 @@
 #include "gtest/gtest.h"
 #include "Include.h"
 #include "HartreeFock/Core.h"
+#include "Specification/Specification.h"
 
 using namespace Ambit;
 

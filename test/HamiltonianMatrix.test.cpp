@@ -2,13 +2,12 @@
 #include "gtest/gtest.h"
 #include "Include.h"
 #include "HartreeFock/Core.h"
-#include "HartreeFock/ConfigurationParser.h"
 #include "Basis/BasisGenerator.h"
 #include "Configuration/ConfigGenerator.h"
 #include "Configuration/GFactor.h"
-#include "Atom/Atom.h"
 #include "Configuration/LevelMap.h"
 #include "Atom/MultirunOptions.h"
+#include "Specification/Specification.h"
 
 using namespace Ambit;
 
@@ -38,11 +37,19 @@ TEST(HamiltonianMatrixTester, MgILevels)
         "OddParityTwoJ = '0, 2'\n" +
         "NumSolutions = 3\n";
 
+    GlobalSpecification specification;
+    // Can parse the user_input_string directly via parapara
+    std::string perr = importSpecificationKV(specification, user_input_string);
+    if (!perr.empty()) {
+        *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+
     std::stringstream user_input_stream(user_input_string);
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, userInput);
+    BasisGenerator basis_generator(lattice, specification);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
 
@@ -126,11 +133,19 @@ TEST(HamiltonianMatrixTester, HolesOnly)
         "LeadingConfigurations = '3s2 3p6 3d8'\n" +
         "ElectronExcitations = 2\n";
 
+        GlobalSpecification specification;
+        // Can parse the user_input_string directly via parapara
+        std::string perr = importSpecificationKV(specification, user_input_string);
+        if (!perr.empty()) {
+            *errstream << "importSpecificationKV:\n" << perr << std::endl;
+            exit(1);
+        }
+
         std::stringstream user_input_stream(user_input_string);
         MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
         // Get core and excited basis
-        BasisGenerator basis_generator(lattice, userInput);
+        BasisGenerator basis_generator(lattice, specification);
         basis_generator.GenerateHFCore();
         pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
         ConfigGenerator gen(orbitals, userInput);
@@ -184,11 +199,19 @@ TEST(HamiltonianMatrixTester, HolesOnly)
         "ElectronExcitations = 0\n" +
         "HoleExcitations = 2\n";
 
+        GlobalSpecification specification;
+        // Can parse the user_input_string directly via parapara
+        std::string perr = importSpecificationKV(specification, user_input_string);
+        if (!perr.empty()) {
+            *errstream << "importSpecificationKV:\n" << perr << std::endl;
+            exit(1);
+        }
+
         std::stringstream user_input_stream(user_input_string);
         MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
         // Get core and excited basis
-        BasisGenerator basis_generator(lattice, userInput);
+        BasisGenerator basis_generator(lattice, specification);
         basis_generator.GenerateHFCore();
         pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
         ConfigGenerator gen(orbitals, userInput);
@@ -275,11 +298,19 @@ TEST(HamiltonianMatrixTester, HolesVsElectrons)
             "LeadingConfigurations = '3d9'\n" +
             "ElectronExcitations = 1\n";
 
+        GlobalSpecification specification;
+        // Can parse the user_input_string directly via parapara
+        std::string perr = importSpecificationKV(specification, user_input_string);
+        if (!perr.empty()) {
+            *errstream << "importSpecificationKV:\n" << perr << std::endl;
+            exit(1);
+        }
+
         std::stringstream user_input_stream(user_input_string);
         MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
         // Get core and excited basis
-        BasisGenerator basis_generator(lattice, userInput);
+        BasisGenerator basis_generator(lattice, specification);
         basis_generator.GenerateHFCore();
         pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
         ConfigGenerator gen(orbitals, userInput);
@@ -333,11 +364,19 @@ TEST(HamiltonianMatrixTester, HolesVsElectrons)
             "ElectronExcitations = 1\n" +
             "HoleExcitations = 1\n";
 
+        GlobalSpecification specification;
+        // Can parse the user_input_string directly via parapara
+        std::string perr = importSpecificationKV(specification, user_input_string);
+        if (!perr.empty()) {
+            *errstream << "importSpecificationKV:\n" << perr << std::endl;
+            exit(1);
+        }
+
         std::stringstream user_input_stream(user_input_string);
         MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
         // Get core and excited basis
-        BasisGenerator basis_generator(lattice, userInput);
+        BasisGenerator basis_generator(lattice, specification);
         basis_generator.GenerateHFCore();
         pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
         ConfigGenerator gen(orbitals, userInput);
@@ -421,12 +460,20 @@ TEST(HamiltonianMatrixTester, LiPlus)
         "[CI]\n" +
         "LeadingConfigurations = '1s2'\n" +
         "ElectronExcitations = 1\n";
+
+        GlobalSpecification specification;
+        // Can parse the user_input_string directly via parapara
+        std::string perr = importSpecificationKV(specification, user_input_string);
+        if (!perr.empty()) {
+            *errstream << "importSpecificationKV:\n" << perr << std::endl;
+            exit(1);
+        }
         
         std::stringstream user_input_stream(user_input_string);
         MultirunOptions userInput(user_input_stream, "//", "\n", ",");
         
         // Get core and excited basis
-        BasisGenerator basis_generator(lattice, userInput);
+        BasisGenerator basis_generator(lattice, specification);
         basis_generator.GenerateHFCore();
         pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
         ConfigGenerator gen(orbitals, userInput);
@@ -477,12 +524,20 @@ TEST(HamiltonianMatrixTester, LiPlus)
         "LeadingConfigurations = '0'\n" +
         "ElectronExcitations = 1\n" +
         "HoleExcitations = 1\n";
+
+        GlobalSpecification specification;
+        // Can parse the user_input_string directly via parapara
+        std::string perr = importSpecificationKV(specification, user_input_string);
+        if (!perr.empty()) {
+            *errstream << "importSpecificationKV:\n" << perr << std::endl;
+            exit(1);
+        }
         
         std::stringstream user_input_stream(user_input_string);
         MultirunOptions userInput(user_input_stream, "//", "\n", ",");
         
         // Get core and excited basis
-        BasisGenerator basis_generator(lattice, userInput);
+        BasisGenerator basis_generator(lattice, specification);
         basis_generator.GenerateHFCore();
         pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
         ConfigGenerator gen(orbitals, userInput);
@@ -571,12 +626,20 @@ TEST(HamiltonianMatrixTester, NonStretchedStates)
         "LeadingConfigurations = '3d-1'\n" +
         "ElectronExcitations = 1\n" +
         "HoleExcitations = 1\n";
+
+        GlobalSpecification specification;
+        // Can parse the user_input_string directly via parapara
+        std::string perr = importSpecificationKV(specification, user_input_string);
+        if (!perr.empty()) {
+            *errstream << "importSpecificationKV:\n" << perr << std::endl;
+            exit(1);
+        }
         
         std::stringstream user_input_stream(user_input_string);
         MultirunOptions userInput(user_input_stream, "//", "\n", ",");
         
         // Get core and excited basis
-        BasisGenerator basis_generator(lattice, userInput);
+        BasisGenerator basis_generator(lattice, specification);
         basis_generator.GenerateHFCore();
         pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
         ConfigGenerator gen(orbitals, userInput);
@@ -626,12 +689,20 @@ TEST(HamiltonianMatrixTester, NonStretchedStates)
         "LeadingConfigurations = '3d-1'\n" +
         "ElectronExcitations = 1\n" +
         "HoleExcitations = 1\n";
+
+        GlobalSpecification specification;
+        // Can parse the user_input_string directly via parapara
+        std::string perr = importSpecificationKV(specification, user_input_string);
+        if (!perr.empty()) {
+            *errstream << "importSpecificationKV:\n" << perr << std::endl;
+            exit(1);
+        }
         
         std::stringstream user_input_stream(user_input_string);
         MultirunOptions userInput(user_input_stream, "//", "\n", ",");
         
         // Get core and excited basis
-        BasisGenerator basis_generator(lattice, userInput);
+        BasisGenerator basis_generator(lattice, specification);
         basis_generator.GenerateHFCore();
         pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
         ConfigGenerator gen(orbitals, userInput);

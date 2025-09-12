@@ -2,8 +2,8 @@
 #include "Include.h"
 #include "HartreeFock/Core.h"
 #include "Basis/BasisGenerator.h"
-#include "Atom/MultirunOptions.h"
 #include "Basis/BSplineBasis.h"
+#include "Specification/Specification.h"
 
 using namespace Ambit;
 
@@ -22,11 +22,16 @@ TEST(BSplineBasisTester, Rb)
     "--bspline-basis\n" +
     "ValenceBasis = 10s\n";
 
-    std::stringstream user_input_stream(user_input_string);
-    MultirunOptions userInput(user_input_stream, "//", "\n", ",");
+    GlobalSpecification specification;
+    // Can parse the user_input_string directly via parapara
+    std::string perr = importSpecificationKV(specification, user_input_string);
+    if (!perr.empty()) {
+        *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, userInput);
+    BasisGenerator basis_generator(lattice, specification);
     pCore core = basis_generator.GenerateHFCore();
 
     int num_splines = 40;

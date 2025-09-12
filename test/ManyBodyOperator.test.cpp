@@ -1,6 +1,7 @@
 #include "Configuration/ManyBodyOperator.h"
 #include "gtest/gtest.h"
 #include "Include.h"
+#include "Specification/Specification.h"
 
 using namespace Ambit;
 

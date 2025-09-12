@@ -8,6 +8,7 @@
 #include "Atom/MultirunOptions.h"
 #include "MBPT/OneElectronMBPT.h"
 #include "MBPT/CoreValenceIntegrals.h"
+#include "Specification/Specification.h"
 
 using namespace Ambit;
 
@@ -43,13 +44,21 @@ TEST(CoreValenceIntegralsTester, CsGroundState)
         "EvenParityTwoJ = '1'\n" +
         "[MBPT]\n" +
         "Basis=30spdfghi\n";
-    
+
+    GlobalSpecification specification;
+    // Can parse the user_input_string directly via parapara
+    std::string perr = importSpecificationKV(specification, user_input_string);
+    if (!perr.empty()) {
+        *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+
     std::stringstream user_input_stream(user_input_string);
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
     std::string identifier = "Cs_gtest";
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, userInput);
+    BasisGenerator basis_generator(lattice, specification);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
 
@@ -199,13 +208,21 @@ TEST(CoreValenceIntegralsTester, HeCoulombPotential)
         "[MBPT]\n" + 
         "--use-valence\n" + 
         "Basis=35spdfghi\n"; 
-    
+   
+    GlobalSpecification specification;
+    // Can parse the user_input_string directly via parapara
+    std::string perr = importSpecificationKV(specification, user_input_string);
+    if (!perr.empty()) {
+        *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    } 
+
     std::stringstream user_input_stream(user_input_string);
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
     std::string identifier = "He_gtest";
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, userInput);
+    BasisGenerator basis_generator(lattice, specification);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
 
