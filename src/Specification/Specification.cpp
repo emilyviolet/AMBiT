@@ -188,6 +188,7 @@ std::string validateSpecification(const GlobalSpecification& gs) {
         if(count != 1)
             return "Must specify exactly one of HF/Yukawa/Mass, HF/Yukawa/MassEV, or HF/Yukawa/Rc when using HF/Yukawa";
     }
+
     // Oll Korrect
     return "";
 }

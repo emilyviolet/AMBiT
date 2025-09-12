@@ -81,6 +81,7 @@ struct GlobalSpecification {
     std::string basis_valence;
     std::optional<std::string> basis_frozen_core;
     std::optional<std::string> basis_size;
+    // TODO EVK: Should this be a std::optional?
     std::vector<std::string> basis_include_valence;
     std::vector<std::string> basis_exclude_valence;
     std::optional<std::string> basis_residue;
@@ -92,7 +93,7 @@ struct GlobalSpecification {
     std::optional<std::string> basis_hf_orbitals;
     std::optional<std::vector<std::string> > basis_xr_custom_orbitals;
     // Basis/BSpline
-    double basis_bspline_rmax = 0; 
+    std::optional<double> basis_bspline_rmax; 
     double basis_bspline_r0 = 0;
     double basis_bspline_k = 7;
     double basis_bspline_N = 40;

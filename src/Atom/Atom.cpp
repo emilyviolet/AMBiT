@@ -19,6 +19,7 @@ Atom::~Atom(void)
 
 pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
 {
+    SpecificationMap config_map = get_config_map_view(specification);
     bool use_read = true;
     if(user_input.search(2, "--clean", "-c"))
         use_read = false;
@@ -41,16 +42,16 @@ pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
         {   
             if(specification.lattice_exponential)
             {
-                unsigned num_points;
-                double start_point;
-                double h;
+                unsigned num_points = config_map["Lattice/NumPoints"];
+                double start_point = config_map["Lattice/StartPoint"];
+                double h = config_map["Lattice/H"];
                 lattice = pLattice(new ExpLattice(num_points, start_point, h));
             } 
             else
             {
-                unsigned num_points;
-                double start_point;
-                double end_point;
+                unsigned num_points = config_map["Lattice/NumPoints"];
+                double start_point = config_map["Lattice/StartPoint"];
+                double end_point = config_map["Lattice/EndPoint"];
                 lattice = pLattice(new Lattice(num_points, start_point, end_point));
             }
 #if 0
