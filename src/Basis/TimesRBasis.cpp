@@ -1,4 +1,3 @@
-#include "Basis/BasisConfig.h"
 #include "Include.h"
 #include "TimesRBasis.h"
 #include "BasisGenerator.h"
@@ -14,12 +13,7 @@ namespace Ambit
 // This file contains the basis creation function from BasisGenerator as well as CustomBasis
 pOrbitalMap BasisGenerator::GenerateXRExcited(const std::vector<int>& max_pqn)
 {
-    // We only call this function if using TimesR Basis, so should be fine to cast the config
-    // object to a pointer to the XRBasisConfig variant (since this is what it is guaranteed to
-    // hold at this point)
-    // TODO: Would really like to make this a unique_ptr but this currently doesn't seem to be
-    // possible with std::get_if :(
-    auto xr_config = std::get_if<XRBasisConfig>(&basis_config);
+    SpecificationMap config_map = get_config_map_view(config);
     pOrbitalMap excited(new OrbitalMap(lattice));
 
     if(!max_pqn.size())
@@ -39,9 +33,10 @@ pOrbitalMap BasisGenerator::GenerateXRExcited(const std::vector<int>& max_pqn)
     std::vector<XRInstruction> xRinstructions;
     std::vector<NonRelInfo> HFinstructions;
 
-    if(xr_config->custom_orbitals)
+    std::optional<std::vector<std::string> > custom_orbitals_opt = config_map["Basis/XR/CustomOrbitals"];
+    if(custom_orbitals_opt)
     {
-        auto custom_orbitals = xr_config->custom_orbitals.value();
+        auto custom_orbitals = custom_orbitals_opt.value();
         unsigned numcustomorbitals = custom_orbitals.size();
         for(unsigned int i = 0; i < numcustomorbitals; i++)
         {
@@ -103,9 +98,10 @@ pOrbitalMap BasisGenerator::GenerateXRExcited(const std::vector<int>& max_pqn)
     HartreeFocker HF_Solver(ode_solver);
 
     // Do HF orbitals first. This ensures the lattice is large enough and that the starting levels exist.
-    if(xr_config->hf_orbitals)
+    std::optional<std::string> hf_orbitals = config_map["Basis/HFOrbitals"];
+    if(hf_orbitals)
     {
-        std::string hf_valence_states = xr_config->hf_orbitals.value();
+        std::string hf_valence_states = hf_orbitals.value();
         pOrbitalMap hf_valence = GenerateHFExcited(ConfigurationParser::ParseBasisSize(hf_valence_states));
         for(auto porb: *hf_valence)
             excited->AddState(porb.second);

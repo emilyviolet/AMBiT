@@ -5,7 +5,6 @@
 #include "Configuration/HamiltonianMatrix.h"
 #include "HartreeFock/Core.h"
 #include "Basis/BasisGenerator.h"
-#include "Universal/LatticeConfig.h"
 #include "Universal/MathConstant.h"
 #include "Universal/PhysicalConstant.h"
 #include "Configuration/LevelMap.h"

@@ -1,4 +1,3 @@
-#include "BasisConfig.h"
 #include "BasisGenerator.h"
 #include "BSplineBasis.h"
 #include "Include.h"
@@ -12,12 +11,7 @@ namespace Ambit
 // This file contains B-spline routines from BasisGenerator as well as BSplineBasis
 pOrbitalMap BasisGenerator::GenerateBSplines(const std::vector<int>& max_pqn)
 {
-    // We only call this function if using BSplines, so should be fine to cast the config object to
-    // a pointer to the BSplineBasisConfig variant (since this is what it is guaranteed to hold at
-    // this point)
-    // TODO: Would really like to make this a unique_ptr but this currently doesn't seem to be
-    // possible with std::get_if :(
-    auto bspline_config = std::get_if<BSplineBasisConfig>(&basis_config);
+    SpecificationMap config_map = get_config_map_view(config);
     pOrbitalMap excited(new OrbitalMap(lattice));
 
     if(!max_pqn.size())
@@ -26,11 +20,22 @@ pOrbitalMap BasisGenerator::GenerateBSplines(const std::vector<int>& max_pqn)
     bool debug = DebugOptions.OutputHFExcited();
 
     // Get spline type and parameters
-    auto spline_type = bspline_config->spline_type;
-    unsigned n = bspline_config->N;
-    unsigned k = bspline_config->K;
-    double rmax = bspline_config->RMax;
-    double dr0 = bspline_config->R0;
+    std::string spline_type_string = config_map["Basis/BSpline/SplineType"];
+    // Parse the string from the user-input to get the Spline type.
+    // TODO EVK: this should probably be done in the config-parser, but I can't think of how to
+    // make this work with the nice map-like interface
+    SplineType spline_type = SplineType::Reno;
+    if(spline_type_string.compare("Reno") == 0 || spline_type_string.compare("DKB") == 0)
+        spline_type = SplineType::Reno;
+    else if(spline_type_string.compare("Vanderbilt") == 0)
+        spline_type = SplineType::Vanderbilt;
+    else if(spline_type_string.compare("NotreDame") == 0 || spline_type_string.compare("Johnson") == 0)
+        spline_type = SplineType::NotreDame;
+
+    unsigned n = config_map["Basis/BSpline/N"];
+    unsigned k = config_map["Basis/BSpline/K"];
+    double rmax = config_map["Basis/BSpline/Rmax"];
+    double dr0 = config_map["Basis/BSpline/R0"];
 
     if(rmax > lattice->MaxRealDistance())
         lattice->resize(rmax);

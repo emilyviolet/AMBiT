@@ -15,6 +15,7 @@
 #include "ExternalField/LorentzInvarianceT2.h"
 #include "ExternalField/NormalMassShiftDecorator.h"
 #include "Specification/Specification.h"
+#include "Specification/SpecificationMap.h"
 
 // Headers to get stack-traces
 #ifdef UNIX

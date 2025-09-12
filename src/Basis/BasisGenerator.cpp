@@ -1,6 +1,4 @@
 #include "BasisGenerator.h"
-#include "Basis/BasisConfig.h"
-#include "HartreeFock/HFConfig.h"
 #include "HartreeFock/OrbitalMap.h"
 #include "Include.h"
 #include "HartreeFock/ConfigurationParser.h"
@@ -14,18 +12,19 @@
 #include "ExternalField/RadiativePotential.h"
 #include "ExternalField/NuclearPolarisability.h"
 #include "ExternalField/YukawaPotential.h"
-#include "MBPT/MBPTConfig.h"
+#include "Specification/Specification.h"
 #include "Universal/Lattice.h"
+#include <optional>
 
 namespace Ambit
 {
-BasisGenerator::BasisGenerator(pLattice lat, HFConfig hf_config, BasisConfig basis_config, pPhysicalConstant physical_constant):
+BasisGenerator::BasisGenerator(pLattice lat, GlobalSpecification& config, pPhysicalConstant physical_constant):
     lattice(lat), physical_constant(physical_constant), 
-    hf_config(std::move(hf_config)),
-    basis_config(std::move(basis_config)),
+    config(config),
     open_core(nullptr)
 {
     orbitals = pOrbitalManager(new OrbitalManager(lattice));
+    // Save a nice key-value interface for the GlobalSpecification
 }
 
 BasisGenerator::~BasisGenerator()
@@ -33,25 +32,29 @@ BasisGenerator::~BasisGenerator()
 
 void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
 {
-    unsigned int Z = hf_config.Z;
+    SpecificationMap config_map = get_config_map_view(config);
+    unsigned int Z = config_map["Z"];
 
     // HF/Charge and HF/N may or may not be present in the input file, so either grab the value if
     // it exists, or calculate it based on the electronic parameters
     int Charge;
-    if(hf_config.charge)
+    std::optional<int> Charge_opt = config_map["HF/Charge"];
+    std::optional<unsigned> N = config_map["HF/N"];
+    if(Charge_opt)
     {
-        Charge = hf_config.charge.value();
-    } else 
-    {   if(hf_config.N && Z >= hf_config.N.value())
+        Charge = Charge_opt.value();
+    } 
+    else 
+    {   if(N && Z >= N.value())
         {
-            Charge = Z - hf_config.N.value();
+            Charge = Z - N.value();
         } else {
             Charge = 0;
         }
     }
 
     //TODO: Error message if Charge or N is missing or incorrect.
-    std::string config = hf_config.configuration;
+    std::string config = config_map["HF/Configuration"];
 
     // Get orbitals and occupancies
     std::string open_shell_string;
@@ -83,8 +86,8 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
     if(physical_constant == nullptr)
     {
         physical_constant = pPhysicalConstant(new PhysicalConstant());
-        double alpha_variation = hf_config.alpha_squared_variation;
-        if(alpha_variation)
+        double alpha_variation = config_map["HF/AlphaSquaredVariation"];
+        if(alpha_variation != 0)
             physical_constant->SetAlphaSquaredIncreaseRatio(alpha_variation);
     }
 
@@ -92,11 +95,11 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
     hf = undressed_hf;
 
     // Add nuclear potential
-    double nuclear_radius = hf_config.nuclear_radius;
+    double nuclear_radius = config_map["HF/NuclearRadius"];
     if(nuclear_radius)
     {
         nucleus = std::make_shared<NucleusDecorator>(hf, coulomb, integrator);
-        double nuclear_thickness = hf_config.nuclear_thickness;
+        double nuclear_thickness = config_map["HF/NuclearThickness"];
         nucleus->SetFermiParameters(nuclear_radius, nuclear_thickness);
         nucleus->SetCore(open_core);
         *outstream << "Nuclear RMS radius = " << nucleus->CalculateNuclearRMSRadius() << std::endl;
@@ -108,14 +111,14 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
     hartreeY = pHartreeY(new HartreeY(integrator, coulomb));
 
     // Add additional operators
-    double NuclearInverseMass = hf_config.nuclear_inverse_mass;
+    double NuclearInverseMass = config_map["HF/NuclearInverseMass"];
     if(NuclearInverseMass)
     {
-        bool do_nms = hf_config.nms;
-        bool do_sms = hf_config.sms;
-        bool nonrel_ms = hf_config.nonrel_mass_shift;
-        bool relativistic_nms = hf_config.only_rel_nms;
-        bool lower_sms = hf_config.include_lower_mass;
+        bool do_nms = config_map["HF/--nms"];
+        bool do_sms = config_map["HF/--sms"];
+        bool nonrel_ms = config_map["HF/--nonrelativistic-mass-shift"];
+        bool relativistic_nms = config_map["HF/--only-relativistic-nms"];
+        bool lower_sms = config_map["HF/--include-lower-mass"];
 
         // Default: do specific mass shift
         if(!do_nms && !do_sms && !relativistic_nms)
@@ -154,7 +157,7 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
         }
     }
 
-    if(hf_config.breit)
+    if(config_map["HF/--breit"])
     {
         pHartreeY breit = std::make_shared<BreitZero>(std::make_shared<HartreeYBase>(), integrator, coulomb);
         pHFOperator breit_hf = std::make_shared<BreitHFDecorator>(hf, breit);
@@ -165,22 +168,23 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
     }
 
     // QED options
-    if(hf_config.qed_config)
+    if(config_map["HF/QED"])
     {
         // Get the nuclear RMS radius to use for QED calculations. This will be either a user
         // specified value (QED/NuclearRMSRadius) or the value used in the rest of the calculation 
         double nuclear_rms_radius;
-        if(hf_config.qed_config->nuclear_rms_radius)
-            nuclear_rms_radius = hf_config.qed_config->nuclear_rms_radius.value();
+        std::optional<double> rms_opt = config_map["HF/QED/NuclearRMSRadius"];
+        if(rms_opt)
+            nuclear_rms_radius = rms_opt.value();
         else
             nuclear_rms_radius = GetNuclearRMSRadius();
 
         // Uehling options
-        if(hf_config.qed_config->uehling)
+        if(config_map["HF/QED/--uehling"])
         {
             pUehlingDecorator uehling;
 
-            if(hf_config.qed_config->use_nuclear_density)
+            if(config_map["HF/QED/--use-nuclear-density"])
             {   
                 uehling.reset(new UehlingDecorator(hf, nucleus->GetNuclearDensity()));
             }
@@ -193,20 +197,20 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
         }
 
         // Self-energy options
-        if(hf_config.qed_config->self_energy)
+        if(config_map["HF/QED/--self-energy"])
         {
             pElectricSelfEnergyDecorator electricQED;
             pMagneticSelfEnergyDecorator magneticQED;
 
             // Use the nuclear density from the rest of the calculation
-            if(hf_config.qed_config->use_nuclear_density)
+            if(config_map["HF/QED/--use-nuclear-density"])
             {
-                if(!hf_config.qed_config->no_magnetic)
+                if(config_map["HF/QED/--no-magnetic"])
                 {   
                     magneticQED.reset(new MagneticSelfEnergyDecorator(hf, nucleus->GetNuclearDensity()));
                     hf = magneticQED;
                 }
-                if(!hf_config.qed_config->no_electric)
+                if(config_map["HF/QED/--no-electric"])
                 {   
                     electricQED.reset(new ElectricSelfEnergyDecorator(hf, nucleus->GetNuclearDensity()));
                     hf = electricQED;
@@ -215,14 +219,14 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
             // Use a user-specified value for nuclear density/RMS
             else
             {                   
-                if(!hf_config.qed_config->no_magnetic)
+                if(config_map["HF/QED/--no-magnetic"])
                 {   
                     magneticQED.reset(new MagneticSelfEnergyDecorator(hf, nuclear_rms_radius));
                     hf = magneticQED;
                 }
-                if(!hf_config.qed_config->no_electric)
+                if(config_map["HF/QED/--no-electric"])
                 {   
-                    bool skip_offmass = hf_config.qed_config->skip_offmass; 
+                    bool skip_offmass = config_map["HF/QED/--skip-offmass"]; 
                     electricQED.reset(new ElectricSelfEnergyDecorator(hf, nuclear_rms_radius, !skip_offmass));
                     hf = electricQED;
                 }
@@ -231,34 +235,37 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
     }
 
     // Nuclear polarisability options
-    if(hf_config.nuclear_polarisability_config)
+    if(config_map["HF/NuclearPolarisability"])
     {
-        double alphaE = hf_config.nuclear_polarisability_config->alphaE; 
-        double Ebar = hf_config.nuclear_polarisability_config->ebarMeV; 
+        double alphaE = config_map["HF/NuclearPolarisability/AlphaE"]; 
+        double Ebar = config_map["HF/NuclearPolarisability/EbarMeV"]; 
 
         hf = std::make_shared<NuclearPolarisability>(hf, alphaE, Ebar);
     }
 
     // Yukawa options
-    if(hf_config.yukawa_config)
+    if(config_map["HF/Yukawa"])
     {
         double mass = 1.0;
         // Note that there are multiple different, equivalent ways of specifying the mass. The
         // specification guarantees that exactly one of these is set, to avoid conflicting values
-        if(hf_config.yukawa_config->mass)
-            mass = hf_config.yukawa_config->mass.value();
-        else if (hf_config.yukawa_config->massEV)
-            mass = hf_config.yukawa_config->massEV.value()/MathConstant::Instance()->ElectronMassInEV;
-        else if(hf_config.yukawa_config->rc)
-            mass = 1./(physical_constant->GetAlpha() * hf_config.yukawa_config->rc.value());
+        std::optional<double> ymass = config_map["HF/Yukawa/Mass"];
+        std::optional<double> ymassEV = config_map["HF/Yukawa/MassEV"];
+        std::optional<double> yrc = config_map["HF/Yukawa/Rc"];
+        if(ymass)
+            mass = ymass.value();
+        else if (ymassEV)
+            mass = ymassEV.value()/MathConstant::Instance()->ElectronMassInEV;
+        else if(yrc)
+            mass = 1./(physical_constant->GetAlpha() * yrc.value());
 
-        double scale = hf_config.yukawa_config->scale;
+        double scale = config_map["HF/Yukawa/Scale"];
         hf = std::make_shared<YukawaDecorator>(hf, mass, scale);
     }
 
-    if(hf_config.local_exchange)
+    if(config_map["HF/--local-exchange"])
     {
-        double xalpha = hf_config.xalpha;
+        double xalpha = config_map["HF/Xalpha"];
         pHFOperator localexch = std::make_shared<LocalExchangeApproximation>(hf, coulomb, xalpha);
         localexch->SetCore(open_core);
         hf = localexch;
@@ -267,10 +274,10 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
     }
 
     // Local potential decorator options
-    if(hf_config.local_potential_config)
+    if(config_map["HF/AddLocalPotential"])
     {
-        std::string filename = hf_config.local_potential_config->filename;
-        double scale = hf_config.local_potential_config->scale;
+        std::string filename = config_map["HF/AddLocalPotential/Filename"];
+        double scale = config_map["HF/AddLocalPotential/Scale"];
         pImportedPotentialDecorator loc(new ImportedPotentialDecorator(hf, filename));
         loc->SetScale(scale);
         hf = loc;
@@ -290,6 +297,7 @@ void BasisGenerator::InitialiseHF(pHFOperator& undressed_hf)
 
 void BasisGenerator::SetOrbitalMaps()
 {
+    SpecificationMap config_map = get_config_map_view(config);
     // Transfer from all to closed core
     OrbitalMap& all = *orbitals->all;
     for(auto core_occupation: closed_core->GetOccupancies())
@@ -310,7 +318,7 @@ void BasisGenerator::SetOrbitalMaps()
     // std::visitor to deal with variant types of the basis config (e.g. different kinds of basis
     // functions)
     // TODO EVK: Not sure if I like having to do this every time I access the base class...
-    std::optional<std::string> deep_states = std::visit([](auto &&var) {return var.frozen_core;},basis_config);
+    std::optional<std::string> deep_states = config_map["Basis/FrozenCore"];
     if(deep_states)
     {
         std::vector<int> max_deep_pqns = ConfigurationParser::ParseBasisSize(deep_states.value());
@@ -330,12 +338,11 @@ void BasisGenerator::SetOrbitalMaps()
     }
 
     // IncludeValence moves deep orbitals into valence holes
-    int num_unfrozen = std::visit([](auto&& var) -> int {return(var.include_valence.size());}, basis_config);
+    std::vector<std::string> include_valence = config_map["Basis/IncludeValence"];
+    int num_unfrozen = include_valence.size();
     for(int i = 0; i < num_unfrozen; i++)
     {
-        NonRelInfo nrorb = std::visit([&](auto&& var) -> NonRelInfo {
-                return(ConfigurationParser::ParseOrbital(var.include_valence[i]));
-                }, basis_config);
+        NonRelInfo nrorb = ConfigurationParser::ParseOrbital(include_valence[i]);
         for(auto& orbinfo: nrorb.GetRelativisticInfos())
         {
             auto it = deep.find(orbinfo);
@@ -352,7 +359,7 @@ void BasisGenerator::SetOrbitalMaps()
     }
 
     // Transfer from all to excited states
-    std::string valence_states = std::visit([](auto&& var) -> std::string {return var.valence_basis;},basis_config);
+    std::string valence_states = config_map["Basis/ValenceBasis"];
     std::vector<int> max_pqn_per_l = ConfigurationParser::ParseBasisSize(valence_states);
 
     orbitals->particle = std::make_shared<OrbitalMap>(lattice);
@@ -371,9 +378,8 @@ void BasisGenerator::SetOrbitalMaps()
     // high (virtual) states.
     // Two type magic things happening here: std::visit to concretize the basis variant type, then
     // a value_or since the MBOPT basis might not exist
-    std::string virtual_states = std::visit([](auto&& var) -> std::string {
-            return(var.mbpt_basis.value_or(""));
-            }, basis_config);
+    std::optional<std::string> mbpt_basis_opt = config_map["MBPT/Basis"];
+    std::string virtual_states = mbpt_basis_opt.value_or("");
     orbitals->excited = std::make_shared<OrbitalMap>(lattice);
     orbitals->high = std::make_shared<OrbitalMap>(lattice);
 
@@ -402,12 +408,11 @@ void BasisGenerator::SetOrbitalMaps()
     }
 
     // ExcludeValence moves particle orbitals into high states
-    int num_excluded = std::visit([](auto&& var) -> int {return(var.exclude_valence.size());}, basis_config);
+    std::vector<std::string> exclude_valence = config_map["Basis/ExcludeValence"];
+    int num_excluded = exclude_valence.size();
     for(int i = 0; i < num_excluded; i++)
     {
-        NonRelInfo nrorb = std::visit([&](auto&& var) -> NonRelInfo {
-                return(ConfigurationParser::ParseOrbital(var.exclude_valence[i]));
-                }, basis_config);
+        NonRelInfo nrorb = ConfigurationParser::ParseOrbital(exclude_valence[i]);
         for(auto& orbinfo: nrorb.GetRelativisticInfos())
         {
             auto it = particle.find(orbinfo);
@@ -431,11 +436,12 @@ void BasisGenerator::SetOrbitalMaps()
 
 void BasisGenerator::UpdateNonSelfConsistentOperators()
 {
-    if(hf_config.qed_config)
+    SpecificationMap config_map = get_config_map_view(config);
+    if(config_map["HF/QED"])
     {
-        if(hf_config.qed_config->use_electron_screening)
+        if(config_map["HF/QED/--use-electron-screening"])
         {
-            if(nucleus == nullptr || !hf_config.qed_config->use_nuclear_density)
+            if(nucleus == nullptr || !config_map["HF/QED/--use-nuclear-density"])
             {
                 *logstream << "Cannot have screened Uehling without finite sized nucleus." << std::endl;
                 return;
@@ -548,41 +554,34 @@ pHFOperator BasisGenerator::RecreateBasis(pOrbitalManager orbital_manager)
 
 pOrbitalManagerConst BasisGenerator::GenerateBasis()
 {
+    SpecificationMap config_map = get_config_map_view(config);
     // Make sure hf is correct
-    std::visit([&] (auto &&var) -> void {
-        auto res = var.residue;  
-        if(!res)
-        {
-            hf->SetCore(open_core);
-        }
-        else 
-        {
-            std::string residue = res.value();
-            size_t colon_pos = residue.find(':');
-            if(colon_pos != std::string::npos)
-                residue.erase(colon_pos, 1);
+    std::optional<std::string> res = config_map["Basis/Residue"];
+    if(!res)
+    {
+        hf->SetCore(open_core);
+    }
+    else 
+    {
+        std::string residue = res.value();
+        size_t colon_pos = residue.find(':');
+        if(colon_pos != std::string::npos)
+            residue.erase(colon_pos, 1);
 
-            // No need to clone, since we are not changing the core orbitals
-            pCore residual_core = std::make_shared<Core>(*open_core);
+        // No need to clone, since we are not changing the core orbitals
+        pCore residual_core = std::make_shared<Core>(*open_core);
 
-            OccupationMap residual_occupations = ConfigurationParser::ParseFractionalConfiguration(residue);
-            residual_core->SetOccupancies(residual_occupations);
+        OccupationMap residual_occupations = ConfigurationParser::ParseFractionalConfiguration(residue);
+        residual_core->SetOccupancies(residual_occupations);
 
-            hf->SetCore(residual_core);
-        }
-    }, basis_config);
+        hf->SetCore(residual_core);
+    }
 
     // Generate excited states
-    std::optional<std::string> basis_size = std::visit([](auto &&var) {
-            return(var.basis_size);
-            }, basis_config);
+    std::optional<std::string> basis_size = config_map["Basis/BasisSize"];
 
-    std::optional<std::string> mbpt_basis = std::visit([](auto &&var) {
-            return(var.mbpt_basis);
-            }, basis_config);
-    std::optional<std::string> valence_basis = std::visit([](auto &&var) {
-            return(var.valence_basis);
-            }, basis_config);
+    std::optional<std::string> mbpt_basis = config_map["MBPT/Basis"];
+    std::optional<std::string> valence_basis = config_map["Basis/ValenceBasis"];
 
     // If we haven't got an explicit basis size, then get this from either the MBPT or Valence
     // Basis input options, or an empty string, in that order of preference
@@ -600,56 +599,46 @@ pOrbitalManagerConst BasisGenerator::GenerateBasis()
         all_states = valence_basis.value_or("");
     }
 
-    bool reorth = std::visit([](auto &&var) {
-            return(var.reorthogonalise);
-            }, basis_config);
+    bool reorth = config_map["Basis/--reorthogonalise"];
 
     std::vector<int> max_pqn_per_l = ConfigurationParser::ParseBasisSize(all_states);
     pOrbitalMap excited;
 
-    // Now run through the different basis types and generate the basis
-    // Using a custom function with std::visit to exploit the full type information contained in
-    // BasisConfig, especially since each kind of basis needs qualitatively different logic to
-    // process them correctly
-    // TODO EVK: Not sure if I like this more than regular polymorphism...
-    auto func = [&] (auto const& config) {
-        using type = std::decay_t<decltype(config)>;
-        if constexpr (std::is_same<type, HFBasisConfig>::value) 
-        {
-            return GenerateHFExcited(max_pqn_per_l);
-        } 
-        else if constexpr (std::is_same<type, XRBasisConfig>::value)
-        { 
-            return GenerateXRExcited(max_pqn_per_l);
-        }
-        else if constexpr (std::is_same<type, BSplineBasisConfig>::value)
-        {
-                auto bsplines = GenerateBSplines(max_pqn_per_l);
-                // Replace requested valence orbitals with HF orbitals (if any)
-                if(config.hf_orbitals)
-                {
-                    std::string hf_valence_states = config.hf_orbitals.value();
-                    UpdateHFOrbitals(ConfigurationParser::ParseBasisSize(hf_valence_states), excited);
-                }
-                return bsplines;
-        }
-    };
-    excited = std::visit(func, basis_config);
+    // Now run through the different basis types and generate the basis. We guarantee that exactly
+    // one of these is set when we validate the specification
+    if(config_map["Basis/--hf-basis"])
+    {
+        excited = GenerateHFExcited(max_pqn_per_l);
+    } 
+    else if(config_map["Basis/--xr-basis"])
+    { 
+        excited = GenerateXRExcited(max_pqn_per_l);
+    }
+    else if(config_map["Basis/--bspline-basis"])
+    {
+       excited = GenerateBSplines(max_pqn_per_l);
+       // Replace requested valence orbitals with HF orbitals (if any)
+       std::optional<std::string> hf_orbitals = config_map["Basis/HFOrbitals"];
+       if(hf_orbitals)
+       {
+           std::string hf_valence_states = hf_orbitals.value();
+           UpdateHFOrbitals(ConfigurationParser::ParseBasisSize(hf_valence_states), excited);
+       }
+    }
 
     // Inject any special orbitals from another basis, and push the old ones to higher pqn
-    std::visit([&](auto &&var) {
-        if(var.inject_orbitals)
-        {
-            auto num_injected = var.inject_orbitals.value().size();
+    std::optional<std::vector<std::string>> inject_orbitals = config_map["Basis/InjectOrbitals"];
+    if(inject_orbitals)
+    {
+        auto num_injected = inject_orbitals.value().size();
 
-            for(int i = 0; i < num_injected; i++)
-            {
-                auto inject_string = var.inject_orbitals.value()[i];
-                InjectOrbitals(inject_string, excited);
-                reorth = true;
-            }
+        for(int i = 0; i < num_injected; i++)
+        {
+            auto inject_string = inject_orbitals.value()[i];
+            InjectOrbitals(inject_string, excited);
+            reorth = true;
         }
-    }, basis_config);
+    }
 
     // Place all orbitals in orbitals->all.
     // Finally create orbitals->all and the state index
@@ -750,13 +739,14 @@ void BasisGenerator::InjectOrbitals(const std::string& input, pOrbitalMap excite
     }
 }
 
-void BasisGenerator::CreateBruecknerOrbitals(pBruecknerDecorator brueckner, MBPTConfig mbpt_config)
+void BasisGenerator::CreateBruecknerOrbitals(pBruecknerDecorator brueckner)
 {
+    SpecificationMap config_map = get_config_map_view(config);
     // Set hf operator to brueckner for the rest of the calculation
     hf = brueckner;
 
     pOrbitalMap orbitals_to_update = orbitals->valence;
-    if(mbpt_config.brueckner_config && mbpt_config.brueckner_config->use_excited)
+    if(config_map["MBPT/--brueckner"] && config_map["MBPT/Brueckner/--excited"])
         orbitals_to_update = orbitals->excited;
 
     // Get max PQN for l
@@ -784,12 +774,11 @@ void BasisGenerator::CreateBruecknerOrbitals(pBruecknerDecorator brueckner, MBPT
     }
 
     // Update HF orbitals
-    std::visit([&](auto &&var){
-        if(var.hf_orbitals)
-        {
-            UpdateHFOrbitals(ConfigurationParser::ParseBasisSize(var.hf_orbitals.value()), orbitals_to_update);
-        }
-    }, basis_config);
+    std::optional<std::string> hf_valence_states = config_map["Basis/HFOrbitals"];
+    if(hf_valence_states)
+    {
+        UpdateHFOrbitals(ConfigurationParser::ParseBasisSize(hf_valence_states.value()), orbitals_to_update);
+    }
 }
 
 void BasisGenerator::Orthogonalise(pOrbital current) const

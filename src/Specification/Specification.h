@@ -3,15 +3,13 @@
 
 #include <string>
 #include <vector>
-#include <variant>
 #include <optional>
-
-#include "Basis/BasisConfig.h"
-#include "HartreeFock/HFConfig.h"
-#include "Universal/LatticeConfig.h"
+#include <memory>
+#include "SpecificationMap.h"
 
 namespace Ambit
 {
+
 
 struct GlobalSpecification {
     // Lattice parameters.
@@ -165,11 +163,6 @@ struct GlobalSpecification {
     bool mbpt_brueckner_use_lower = false;
     bool mbpt_brueckner_use_lower_lower = false;
     bool mbpt_brueckner_excited = false;
-
-
-    LatticeConfig getLatticeConfig() const;
-    BasisConfig getBasisConfig() const;
-    HFConfig getHFConfig() const;
 };
 
 // On success, return empty string.
@@ -180,6 +173,12 @@ std::string importSpecificationKV(GlobalSpecification&, const std::string& assig
 
 // Perform global validation of specifications. Return non-empty error message on failure.
 std::string validateSpecification(const GlobalSpecification&);
+
+// Return a map-like interface to the configuration, which lets us do nice things like 
+// config_map["key"] = "value"
+typedef keyed_record_view<GlobalSpecification> SpecificationMap;
+typedef std::shared_ptr<SpecificationMap> pSpecificationMap;
+SpecificationMap get_config_map_view(GlobalSpecification& gs);
 
 } // namespace Ambit
 

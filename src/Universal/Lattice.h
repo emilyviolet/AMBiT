@@ -7,7 +7,6 @@
 #include <memory>
 #include <boost/weak_ptr.hpp>
 
-#include "LatticeConfig.h"
 
 namespace Ambit
 {
@@ -26,10 +25,6 @@ class LatticeObserver;
 class Lattice
 {
 public:
-    Lattice(LatticeHybridConfig config):
-        Lattice(config.num_points, config.start_point, config.end_point)
-    {}
-
     Lattice(unsigned int numpoints, double r_min, double r_max);
     Lattice(FILE* binary_infile);
     virtual ~Lattice() {}

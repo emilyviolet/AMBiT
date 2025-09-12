@@ -5,9 +5,7 @@
 #include <string_view>
 
 #include "Specification.h"
-#include "HartreeFock/HFConfig.h"
 #include "parapara/parapara.h"
-#include "Include.h"
 
 namespace P = parapara;
 
@@ -15,7 +13,7 @@ namespace Ambit
 {
 
 template <typename Record>
-P::hopefully<void> custom_import_ini(Record& rec, const P::specification_set<Record>& specs, std::istream& in);
+P::hopefully<void> custom_import_ini(Record& rec, const P::specification_map<Record>& specs, std::istream& in);
 
 inline auto positive = P::greater_than(0, "must be positive");
 
@@ -122,165 +120,23 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"CI/MaxEnergy",                            &GlobalSpecification::ci_max_energy},
     {"CI/ConfigurationAverageEnergyRange",      &GlobalSpecification::ci_configuration_average_energy_range},
     {"CI/ChunkSize",                            &GlobalSpecification::ci_chunksize},
-    {"CI/--sort-matrix-by-configuration",       &GlobalSpecification::ci_sort_matrix_by_configuration}
+    {"CI/--sort-matrix-by-configuration",       &GlobalSpecification::ci_sort_matrix_by_configuration}, 
+    {"MBPT/Basis",                             &GlobalSpecification::mbpt_basis}, 
+    {"MBPT/EnergyDenomOrbitals",               &GlobalSpecification::mbpt_energy_denom_orbitals}, 
+    {"MBPT/--use-valence",                     &GlobalSpecification::mbpt_use_valence}, 
+    {"MBPT/--no-core",                         &GlobalSpecification::mbpt_no_core}, 
+    {"MBPT/--use-subtraction",                 &GlobalSpecification::mbpt_use_subtraction}, 
+    {"MBPT/--no-subtraction",                  &GlobalSpecification::mbpt_no_subtraction}, 
+    {"MBPT/--no-extra-box",                    &GlobalSpecification::mbpt_no_extra_box}, 
+    {"MBPT/EnergyDenomFloor",                 &GlobalSpecification::mbpt_energy_denom_floor}, 
+    {"MBPT/Delta",                            &GlobalSpecification::mbpt_delta}, 
+    {"MBPT/TwoBody/StorageLimits",            &GlobalSpecification::mbpt_twobody_storage_limits}, 
+    {"MBPT/OneBody/Scaling",                  &GlobalSpecification::mbpt_onebody_scaling}, 
+    {"MBPT/--brueckner",                      &GlobalSpecification::mbpt_brueckner}
 
 };
 
-P::specification_set<GlobalSpecification> global_specifications_dict(global_specifications, P::keys_lc_nows);
-
-LatticeConfig GlobalSpecification::getLatticeConfig() const {
-    if (lattice_exponential) {
-        LatticeExpConfig config;
-
-        config.H = lattice_H;
-        if (lattice_num_points>0) config.num_points = lattice_num_points;
-        if (lattice_start_point>0) config.start_point = lattice_start_point;
-        return config;
-    }
-    else {
-        LatticeHybridConfig config;
-
-        if (lattice_num_points>0) config.num_points = lattice_num_points;
-        if (lattice_start_point>0) config.start_point = lattice_start_point;
-        if (lattice_end_point>0) config.end_point = lattice_end_point;
-        return config;
-    }
-}
-
-BasisConfig GlobalSpecification::getBasisConfig() const {
-    if(basis_xr) {
-        XRBasisConfig config;
-        config.frozen_core = basis_frozen_core;
-        config.basis_size = basis_size;
-        config.valence_basis = basis_valence;
-        config.mbpt_basis = mbpt_basis;
-        config.include_valence = basis_include_valence;
-        config.exclude_valence = basis_exclude_valence;
-        config.residue = basis_residue;
-        config.inject_orbitals = basis_inject_orbitals;
-        config.hf_orbitals = basis_hf_orbitals;
-        config.custom_orbitals = basis_xr_custom_orbitals;
-        config.reorthogonalise = basis_reorthogonalise;
-
-        return(config);
-    } else if (basis_hf) {
-        HFBasisConfig config;
-        config.frozen_core = basis_frozen_core;
-        config.basis_size = basis_size;
-        config.valence_basis = basis_valence;
-        config.mbpt_basis = mbpt_basis;
-        config.include_valence = basis_include_valence;
-        config.exclude_valence = basis_exclude_valence;
-        config.residue = basis_residue;
-        config.inject_orbitals = basis_inject_orbitals;
-        config.hf_orbitals = basis_hf_orbitals;
-        config.reorthogonalise = basis_reorthogonalise;
-
-        return(config);
-    } else {
-        BSplineBasisConfig config;
-        if(basis_bspline_rmax > 0) {
-            config.RMax = basis_bspline_rmax;
-        // If Basis/BSpline/RMax is unset, then it defaults to the value of Lattice/EndPoint,
-        // otherwise it defaults to 40.0;
-        } else if(lattice_end_point > 0) {
-            config.RMax = lattice_end_point;
-        } else {
-            config.RMax = 40.0;
-        }
-        config.R0 = basis_bspline_r0;
-        config.K = basis_bspline_k;
-        
-        // Finally, get the kind of spline to use. Convert eveything to lower case, since we don't
-        // really care about capitalisation here. Default to Reno type
-        std::string spline_type = basis_bspline_splinetype;
-        std::transform(spline_type.begin(), spline_type.end(), spline_type.begin(), ::toupper);
-        if(spline_type == "vanderbilt") {
-            config.spline_type = SplineType::Vanderbilt;
-        } else if (spline_type == "notredame") {
-            config.spline_type = SplineType::NotreDame;
-        } else {
-            config.spline_type = SplineType::Reno;
-        }
-        config.frozen_core = basis_frozen_core;
-        config.basis_size = basis_size;
-        config.valence_basis = basis_valence;
-        // Technically breaks "encapsulation" since this is defined in the [MBPT] input section,
-        // but it's only ever accessed when generating the basis, so it should logically go in the
-        // basis_config. Also this is a std::optional since it's perfectly valid for it to not
-        // exist if we're not doing MBPT
-        config.mbpt_basis = mbpt_basis;
-        config.include_valence = basis_include_valence;
-        config.exclude_valence = basis_exclude_valence;
-        config.residue = basis_residue;
-        config.inject_orbitals = basis_inject_orbitals;
-        config.hf_orbitals = basis_hf_orbitals;
-        config.reorthogonalise = basis_reorthogonalise;
-        return(config);
-    }
-}
-
-HFConfig GlobalSpecification::getHFConfig() const {
-    HFConfig config;
-
-    // TODO: Need some options to go through all the different possible decorators here
-    config.Z = Z;
-    config.charge = hf_charge;
-    config.N = hf_N;
-    config.configuration = hf_configuration;
-    config.breit = hf_breit;
-    config.sms = hf_sms;
-    config.nms = hf_nms;
-    config.only_rel_nms = hf_only_rel_nms;
-    config.nonrel_mass_shift = hf_nonrel_mass_shift;
-    config.include_lower_mass = hf_include_lower_mass;
-    config.local_exchange = hf_local_exchange;
-    config.xalpha = hf_xalpha;
-    config.alpha_squared_variation = hf_alpha_squared_variation;
-    config.nuclear_thickness = hf_nuclear_thickness;
-    config.nuclear_radius = hf_nuclear_radius;
-    config.nuclear_inverse_mass = hf_nuclear_inverse_mass;
-
-    // Only populate the QED spec if we need to, otherwise leave this optional blank
-    //bool do_qed = hf_qed_uehling || hf_qed_self_energy;
-    if(hf_do_qed)
-    {
-        config.qed_config = QEDConfig{0};
-        config.qed_config->uehling = hf_qed_uehling;
-        config.qed_config->self_energy = hf_qed_self_energy;
-        config.qed_config->use_nuclear_density = hf_qed_use_nuclear_density;
-        config.qed_config->nuclear_rms_radius = hf_qed_nuclear_rms_radius;
-        config.qed_config->no_magnetic = hf_qed_no_magnetic;
-        config.qed_config->no_electric = hf_qed_no_electric;
-        config.qed_config->skip_offmass = hf_qed_skip_offmass;
-        config.qed_config->use_electron_screening = hf_qed_use_electron_screening;
-    }
-
-    if(hf_do_yukawa)
-    {
-        config.yukawa_config = YukawaConfig{0};
-        config.yukawa_config->mass = hf_yukawa_mass;
-        config.yukawa_config->massEV = hf_yukawa_massev;
-        config.yukawa_config->rc = hf_yukawa_rc;
-        config.yukawa_config->scale = hf_yukawa_scale;
-    }
-
-    if(hf_do_local_potential)
-    {
-        config.local_potential_config = LocalPotentialConfig{0};
-        config.local_potential_config->filename = hf_addlocal_filename;
-        config.local_potential_config->scale = hf_addlocal_scale;
-    }
-
-    if(hf_do_nuclear_polarisability)
-    {
-        config.nuclear_polarisability_config = NuclearPolarisabilityConfig{0};
-        config.nuclear_polarisability_config->alphaE = hf_nuclear_polarisability_alpha_e;
-        config.nuclear_polarisability_config->ebarMeV = hf_nuclear_polarisability_ebar_mev;
-    }
-
-    return(config);
-}
+P::specification_map<GlobalSpecification> global_specifications_dict(global_specifications, P::keys_lc_nows);
 
 std::string importSpecificationFile(GlobalSpecification& gs, const std::string& fileName) {
     std::ifstream in(fileName);
@@ -334,6 +190,15 @@ std::string validateSpecification(const GlobalSpecification& gs) {
     }
     // Oll Korrect
     return "";
+}
+
+// Note that this doesn't do any parsing, it just returns a view of the GlobalSpecification, with a
+// nice key-value interface for usability. Therefore, it has to be called *after* we've done all
+// the parsing and validation
+SpecificationMap get_config_map_view(GlobalSpecification& gs)
+{
+    keyed_record_view<GlobalSpecification> config_map(global_specifications, gs);
+    return(config_map);
 }
 
 // Custom INI import implementation:
@@ -446,7 +311,7 @@ ini_record custom_ini_parser(std::string_view v) {
 
 // Use a custom line-by-line ini importer to handle relative section headings
 template <typename Record>
-P::hopefully<void> custom_import_ini(Record& rec, const P::specification_set<Record>& specs, std::istream& in)
+P::hopefully<void> custom_import_ini(Record& rec, const P::specification_map<Record>& specs, std::istream& in)
 {
     constexpr auto npos = std::string_view::npos;
 

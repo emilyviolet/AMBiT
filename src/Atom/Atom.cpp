@@ -1,13 +1,10 @@
-#include "HartreeFock/HFConfig.h"
 #ifdef AMBIT_USE_MPI
 #include <mpi.h>
 #endif
 #include "Include.h"
 #include "Atom.h"
 #include "Basis/BasisGenerator.h"
-#include "Basis/BasisConfig.h"
 #include "Universal/ExpLattice.h"
-#include "Universal/LatticeConfig.h"
 #include "MBPT/BruecknerDecorator.h"
 #include "HartreeFock/ConfigurationParser.h"
 
@@ -41,13 +38,20 @@ pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
     //        ReadGraspMCDF("MCDF.DAT");
         }
         else
-        {   // Lattice parameters
-            LatticeConfig lattice_config = specification.getLatticeConfig();
-            if (auto hconf = std::get_if<LatticeHybridConfig>(&lattice_config))
-                lattice = pLattice(new Lattice(*hconf));
+        {   
+            if(specification.lattice_exponential)
+            {
+                unsigned num_points;
+                double start_point;
+                double h;
+                lattice = pLattice(new ExpLattice(num_points, start_point, h));
+            } 
             else
-            {   auto econf = std::get_if<LatticeExpConfig>(&lattice_config);
-                lattice = pLattice(new ExpLattice(*econf));
+            {
+                unsigned num_points;
+                double start_point;
+                double end_point;
+                lattice = pLattice(new Lattice(num_points, start_point, end_point));
             }
 #if 0
             if(user_input.search("Lattice/--exp-lattice"))
@@ -67,9 +71,8 @@ pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
 
         // Relativistic Hartree-Fock
         // Basis options from input
-        BasisConfig basis_config = specification.getBasisConfig();
-        HFConfig hf_config = specification.getHFConfig();
-        basis_generator = std::make_shared<BasisGenerator>(lattice, hf_config, basis_config);
+        // Finally, get a map-view of the specification for a nicer interface
+        basis_generator = std::make_shared<BasisGenerator>(lattice, specification);
         open_core = basis_generator->GenerateHFCore(hf_open_core_start);
         hf_open = basis_generator->GetOpenHFOperator();
 
@@ -112,9 +115,7 @@ bool Atom::ReadBasis()
 
     // Generate HF operator
     // Basis and HF options from input
-    BasisConfig basis_config = specification.getBasisConfig();
-    HFConfig hf_config = specification.getHFConfig();
-    basis_generator = std::make_shared<BasisGenerator>(lattice, hf_config, basis_config);
+    basis_generator = std::make_shared<BasisGenerator>(lattice, specification);
     hf_open = basis_generator->RecreateBasis(modifiable_orbitals);
 
     orbitals = modifiable_orbitals;
