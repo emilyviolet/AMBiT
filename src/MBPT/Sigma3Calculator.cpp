@@ -4,7 +4,7 @@
 
 namespace Ambit
 {
-Sigma3Calculator::Sigma3Calculator(pOrbitalManagerConst orbitals, pSlaterIntegrals two_body, const std::string& fermi_orbitals):
+Sigma3Calculator::Sigma3Calculator(pOrbitalManagerConst orbitals, pSlaterIntegrals two_body, const std::optional<std::string> fermi_orbitals):
     MBPTCalculator(orbitals, fermi_orbitals, two_body->OffParityExists()), two_body(two_body), include_valence(false),
     include_core(true), deep(orbitals->deep), high(orbitals->high)
 {}

@@ -2,6 +2,7 @@
 #define VALENCE_CALCULATOR_H
 
 #include "CoreMBPTCalculator.h"
+#include <optional>
 
 namespace Ambit
 {
@@ -11,7 +12,7 @@ namespace Ambit
 class ValenceMBPTCalculator : public MBPTCalculator
 {
 public:
-    ValenceMBPTCalculator(pOrbitalManagerConst orbitals, pHFIntegrals one_body, pSlaterIntegrals two_body, const std::string& fermi_orbitals = "");
+    ValenceMBPTCalculator(pOrbitalManagerConst orbitals, pHFIntegrals one_body, pSlaterIntegrals two_body, const std::optional<std::string> fermi_orbitals);
     virtual ~ValenceMBPTCalculator();
 
     virtual unsigned int GetStorageSize() override;

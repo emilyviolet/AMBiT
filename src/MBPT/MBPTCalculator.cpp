@@ -3,7 +3,7 @@
 
 namespace Ambit
 {
-MBPTCalculator::MBPTCalculator(pOrbitalManagerConst pOrbitals, const std::string& fermi_orbitals, bool include_off_parity):
+MBPTCalculator::MBPTCalculator(pOrbitalManagerConst pOrbitals, const std::optional<std::string> fermi_orbitals, bool include_off_parity):
     orbitals(pOrbitals), valence(pOrbitals->valence), fermi_orbitals(fermi_orbitals), delta(0.0), include_off_parity(include_off_parity),
     kstep(include_off_parity? 1: 2)
 {
@@ -29,7 +29,8 @@ void MBPTCalculator::SetValenceEnergies()
     }
 
     // Get orbitals to use if specified
-    std::vector<int> valence_orbitals = ConfigurationParser::ParseBasisSize(fermi_orbitals);
+    // TODO: Probably want more sophisticated checking for non-existent values
+    std::vector<int> valence_orbitals = ConfigurationParser::ParseBasisSize(fermi_orbitals.value_or(""));
 
     for(int kappa = - (int)max_l - 1; kappa <= (int)max_l; kappa++)
     {

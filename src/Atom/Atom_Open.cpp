@@ -23,7 +23,7 @@ namespace Ambit
 {
 void Atom::MakeMBPTIntegrals()
 {
-    bool check_sizes = user_input.search("--check-sizes");
+    bool check_sizes = specification.check_sizes;
     bool one_body_mbpt = user_input.search(3, "-s1", "-s12", "-s123");
     bool two_body_mbpt = user_input.search(4, "-s2", "-s12", "-s23", "-s123");
 
@@ -32,7 +32,8 @@ void Atom::MakeMBPTIntegrals()
     pSlaterIntegrals bare_two_body_integrals = std::make_shared<SlaterIntegralsFlatHash>(orbitals, hartreeY);
 
     // MBPT calculators
-    std::string fermi_orbitals = user_input("MBPT/EnergyDenomOrbitals", "");
+    //std::string fermi_orbitals = user_input("MBPT/EnergyDenomOrbitals", "");
+    std::optional<std::string> fermi_orbitals = specification.mbpt_energy_denom_orbitals;
     pCoreMBPTCalculator core_mbpt = std::make_shared<CoreMBPTCalculator>(orbitals, bare_one_body_integrals, bare_two_body_integrals, fermi_orbitals);
     pValenceMBPTCalculator val_mbpt = std::make_shared<ValenceMBPTCalculator>(orbitals, bare_one_body_integrals, bare_two_body_integrals, fermi_orbitals);
 
@@ -184,7 +185,8 @@ void Atom::MakeCIIntegrals()
 
     if(three_body_mbpt)
     {
-        std::string fermi_orbitals = user_input("MBPT/EnergyDenomOrbitals", "");
+        //std::string fermi_orbitals = user_input("MBPT/EnergyDenomOrbitals", "");
+        std::optional<std::string> fermi_orbitals = specification.mbpt_energy_denom_orbitals;
         threebody_electron = std::make_shared<Sigma3Calculator>(orbitals, two_body_integrals, fermi_orbitals);
         threebody_electron->IncludeCore(!user_input.search("MBPT/--no-core"));
         threebody_electron->IncludeValence(user_input.search("MBPT/--use-valence"));

@@ -18,7 +18,7 @@ public:
             Denote using a basis-style string, e.g. 5sp4df.
             Any unspecified angular momentum defaults to first orbital above fermi level.
      */
-    MBPTCalculator(pOrbitalManagerConst pOrbitals, const std::string& fermi_orbitals = "", bool include_off_parity = false);
+    MBPTCalculator(pOrbitalManagerConst pOrbitals, const std::optional<std::string> fermi_orbitals, bool include_off_parity = false);
     virtual ~MBPTCalculator(void);
 
     virtual unsigned int GetStorageSize() = 0;
@@ -114,7 +114,7 @@ protected:
     std::map<int, double> ValenceEnergies;
 
     /** Choose orbitals used to create ValenceEnergies for energy denominators of MBPT. */
-    std::string fermi_orbitals;
+    std::optional<std::string> fermi_orbitals;
     void SetValenceEnergies();
 
     double delta = 0.0; //!< Shift in the energy denominator.

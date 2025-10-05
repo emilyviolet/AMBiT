@@ -28,7 +28,7 @@ void BruecknerDecorator::CalculateSigma(int kappa, pBruecknerSigmaCalculator bru
     }
 }
 
-void BruecknerDecorator::CalculateSigma(int kappa, pOrbitalManagerConst orbitals, pHartreeY hartreeY, const std::string& fermi_orbitals, pSpinorOperatorConst bare_hf)
+void BruecknerDecorator::CalculateSigma(int kappa, pOrbitalManagerConst orbitals, pHartreeY hartreeY, const std::optional<std::string> fermi_orbitals, pSpinorOperatorConst bare_hf)
 {
     if(sigmas.find(kappa) == sigmas.end())
     {

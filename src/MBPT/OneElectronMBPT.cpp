@@ -5,10 +5,12 @@
 
 namespace Ambit
 {
+// NOTE we don't need the EnergyDenomOrbitals for one-electron MBPT, so initialise the
+// different MBPT calculators with fermi_orbitals = std::nullopt (i.e. the null value)
 OneElectronMBPT::OneElectronMBPT(pOrbitalManagerConst orbitals, pHFIntegrals bare_one_body, pSlaterIntegrals bare_two_body, const std::string& write_file):
     OneElectronMBPT(orbitals, bare_one_body->GetOperator(),
-                    std::make_shared<CoreMBPTCalculator>(orbitals, bare_one_body, bare_two_body),
-                    std::make_shared<ValenceMBPTCalculator>(orbitals, bare_one_body, bare_two_body), write_file)
+                    std::make_shared<CoreMBPTCalculator>(orbitals, bare_one_body, bare_two_body, std::nullopt),
+                    std::make_shared<ValenceMBPTCalculator>(orbitals, bare_one_body, bare_two_body, std::nullopt), write_file)
 {}
 
 OneElectronMBPT::OneElectronMBPT(pOrbitalManagerConst orbitals, pSpinorMatrixElementConst pOperator, pCoreMBPTCalculator core_mbpt_calculator, pValenceMBPTCalculator valence_mbpt_calculator, const std::string& write_file):

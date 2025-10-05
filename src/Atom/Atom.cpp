@@ -19,21 +19,11 @@ Atom::~Atom(void)
 
 pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
 {
-    SpecificationMap config_map = get_config_map_view(specification);
-    bool use_read = true;
-    if(user_input.search(2, "--clean", "-c"))
-        use_read = false;
+    bool use_read = specification.clean_run;
 
     if((ProcessorRank == 0) && (!use_read || !ReadBasis()))
     {
-        /*
-        int N = user_input("HF/N", -1);  // Number of electrons
-        if(N == -1 || N > Z)
-        {   *errstream << "Must specify N (number of electrons) with Z >= N" << std::endl;
-            exit(1);
-        }
-        */
-
+        // TODO: Really should implement this, plus maybe some other common codes
         if(user_input.search("HF/--read-grasp0"))
         {   // Read lattice and core and basis orbitals
     //        ReadGraspMCDF("MCDF.DAT");
@@ -42,37 +32,22 @@ pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
         {   
             if(specification.lattice_exponential)
             {
-                unsigned num_points = config_map["Lattice/NumPoints"];
-                double start_point = config_map["Lattice/StartPoint"];
-                double h = config_map["Lattice/H"];
+                unsigned num_points = specification.lattice_num_points;
+                double start_point = specification.lattice_start_point;
+                double h = specification.lattice_H;
                 lattice = pLattice(new ExpLattice(num_points, start_point, h));
             } 
             else
             {
-                unsigned num_points = config_map["Lattice/NumPoints"];
-                double start_point = config_map["Lattice/StartPoint"];
-                double end_point = config_map["Lattice/EndPoint"];
+                unsigned num_points = specification.lattice_num_points;
+                double start_point = specification.lattice_num_points;
+                double end_point = specification.lattice_end_point;
                 lattice = pLattice(new Lattice(num_points, start_point, end_point));
             }
-#if 0
-            if(user_input.search("Lattice/--exp-lattice"))
-            {   int num_points = user_input("Lattice/NumPoints", 300);
-                double first_point = user_input("Lattice/StartPoint", 1.e-5);
-                double h = user_input("Lattice/H", 0.05);
-                lattice = pLattice(new ExpLattice(num_points, first_point, h));
-            }
-            else
-            {   int num_points = user_input("Lattice/NumPoints", 1000);
-                double first_point = user_input("Lattice/StartPoint", 1.e-6);
-                double lattice_size = user_input("Lattice/EndPoint", 50.);
-                lattice = pLattice(new Lattice(num_points, first_point, lattice_size));
-            }
-#endif
         }
 
         // Relativistic Hartree-Fock
         // Basis options from input
-        // Finally, get a map-view of the specification for a nicer interface
         basis_generator = std::make_shared<BasisGenerator>(lattice, specification);
         open_core = basis_generator->GenerateHFCore(hf_open_core_start);
         hf_open = basis_generator->GetOpenHFOperator();
@@ -132,11 +107,24 @@ bool Atom::ReadBasis()
 
     // Finally, go over the orbitals we've read and make sure they're consistent with the user input
     // First, parse the largest basis string in the user input
-    std::string all_states = user_input("Basis/BasisSize", "");
-    if(all_states.empty())
-        all_states = user_input("MBPT/Basis", "");
-    if(all_states.empty())
-        all_states = user_input("Basis/ValenceBasis", "");
+    std::optional<std::string> basis_size = specification.basis_size;
+    std::optional<std::string> mbpt_basis = specification.mbpt_basis;
+    std::optional<std::string> valence_basis = specification.basis_valence;
+    // If we haven't got an explicit basis size, then get this from either the MBPT or Valence
+    // Basis input options, or an empty string, in that order of preference
+    std::string all_states;
+    if(basis_size)
+    {
+        all_states = basis_size.value();
+    } 
+    else if (mbpt_basis)
+    {
+        all_states = mbpt_basis.value();
+    }
+    else
+    {
+        all_states = valence_basis.value_or("");
+    }
 
     std::vector<int> max_pqn_per_l = ConfigurationParser::ParseBasisSize(all_states);
 
@@ -171,17 +159,17 @@ bool Atom::ReadBasis()
 void Atom::GenerateBruecknerOrbitals(bool generate_sigmas)
 {
     pBruecknerDecorator brueckner(new BruecknerDecorator(hf_open));
-    bool use_fg = user_input.search("MBPT/Brueckner/--use-lower");
-    bool use_gg = user_input.search("MBPT/Brueckner/--use-lower-lower");
+    bool use_fg = specification.mbpt_brueckner_use_lower;
+    bool use_gg = specification.mbpt_brueckner_use_lower_lower;
     brueckner->IncludeLower(use_fg, use_gg);
 
-    double sigma_start_r = user_input("MBPT/Brueckner/StartPoint", 4.35e-5);
-    double sigma_end_r   = user_input("MBPT/Brueckner/EndPoint", 8.0);
-    int stride = user_input("MBPT/Brueckner/Stride", 4);
+    double sigma_start_r = specification.mbpt_brueckner_startpoint;
+    double sigma_end_r   = specification.mbpt_brueckner_endpoint;
+    int stride = specification.mbpt_brueckner_stride;
     brueckner->SetMatrixParameters(stride, sigma_start_r, sigma_end_r);
 
     pOrbitalMap orbitals_to_update = orbitals->valence;
-    if(user_input.search("MBPT/Brueckner/--excited"))
+    if(specification.mbpt_brueckner_excited)
         orbitals_to_update = orbitals->excited;
 
     // Attempt to read all requested kappas
@@ -199,7 +187,7 @@ void Atom::GenerateBruecknerOrbitals(bool generate_sigmas)
     // Make new sigma potentials if they haven't been read (slowly)
     if(generate_sigmas)
     {
-        std::string fermi_orbitals = user_input("MBPT/EnergyDenomOrbitals", "");
+        std::optional<std::string> fermi_orbitals = specification.mbpt_energy_denom_orbitals;
         for(auto& kappa_maxpqn: valence_bounds)
         {   brueckner->CalculateSigma(kappa_maxpqn.first, orbitals, hartreeY, fermi_orbitals);
             brueckner->Write(identifier, kappa_maxpqn.first);
@@ -207,16 +195,15 @@ void Atom::GenerateBruecknerOrbitals(bool generate_sigmas)
     }
 
     // Get scalings or energies
-    unsigned int scaling_length = user_input.vector_variable_size("MBPT/Brueckner/Scaling");
+    unsigned int scaling_length = specification.mbpt_brueckner_scaling.size();
 
     // Run this one unless MBPT/Brueckner/EnergyScaling option is used
-    if(scaling_length)
+    if(!specification.mbpt_brueckner_scaling.empty())
     {
         for(int i = 0; i < scaling_length-1; i+=2)
         {
-            int kappa = user_input("MBPT/Brueckner/Scaling", 0, i);
-            double scale = user_input("MBPT/Brueckner/Scaling", 0.0, i+1);
-
+            int kappa = specification.mbpt_brueckner_energy_scaling[i];
+            double scale = specification.mbpt_brueckner_scaling[i+1];
             brueckner->SetSigmaScaling(kappa, scale);
         }
     }

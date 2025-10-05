@@ -6,7 +6,7 @@
 
 namespace Ambit
 {
-BruecknerSigmaCalculator::BruecknerSigmaCalculator(pOrbitalManagerConst orbitals, pSpinorOperatorConst one_body, pHartreeY two_body, const std::string& fermi_orbitals):
+BruecknerSigmaCalculator::BruecknerSigmaCalculator(pOrbitalManagerConst orbitals, pSpinorOperatorConst one_body, pHartreeY two_body, const std::optional<std::string> fermi_orbitals):
     MBPTCalculator(orbitals, fermi_orbitals, two_body->OffParityExists()), hf(one_body), hartreeY(two_body), core(orbitals->core), excited(orbitals->excited)
 {}
 

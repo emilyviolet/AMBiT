@@ -22,7 +22,7 @@ namespace Ambit
 class Sigma3Calculator : public MBPTCalculator
 {
 public:
-    Sigma3Calculator(pOrbitalManagerConst orbitals, pSlaterIntegrals two_body, const std::string& fermi_orbitals = "");
+    Sigma3Calculator(pOrbitalManagerConst orbitals, pSlaterIntegrals two_body, const std::optional<std::string> fermi_orbitals);
     virtual ~Sigma3Calculator();
 
     void IncludeCore(bool include_mbpt);

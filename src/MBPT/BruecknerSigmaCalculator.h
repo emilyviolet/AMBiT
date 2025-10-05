@@ -10,7 +10,7 @@ namespace Ambit
 class BruecknerSigmaCalculator : public MBPTCalculator
 {
 public:
-    BruecknerSigmaCalculator(pOrbitalManagerConst orbitals, pSpinorOperatorConst one_body, pHartreeY two_body, const std::string& fermi_orbitals = "");
+    BruecknerSigmaCalculator(pOrbitalManagerConst orbitals, pSpinorOperatorConst one_body, pHartreeY two_body, const std::optional<std::string> fermi_orbitals);
     virtual ~BruecknerSigmaCalculator() {}
 
     virtual unsigned int GetStorageSize() override { return 0; }
