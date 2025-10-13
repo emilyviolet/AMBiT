@@ -190,10 +190,10 @@ int main(int argc, char* argv[])
             }
         }
 
-        // Validate the spec
-        perr = validateSpecification(specification);
+        // Validate and normalise the spec
+        perr = validateAndNormaliseSpecification(specification);
         if (!perr.empty()) {
-            *errstream << "validateSpecification:\n" << perr << std::endl;
+            *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
             exit(1);
         }
         // Identifier

@@ -12,6 +12,7 @@ namespace Ambit
 
 
 struct GlobalSpecification {
+    friend class parapara::specification<GlobalSpecification>;
     // Lattice parameters.
     //
     // Default values of zero => unset by user configuration and should be replaced by default
@@ -20,10 +21,7 @@ struct GlobalSpecification {
     // Ungrouped options
     std::string ID;
     unsigned Z = 0;
-    std::string level_directory;
-    bool s1 = false;
-    bool s2 = false;
-    bool s3 = false;
+    std::optional<std::string> level_directory;
     bool no_new_mbpt = false;
     bool check_sizes = false;
     bool clean_run = false;
@@ -35,6 +33,7 @@ struct GlobalSpecification {
     double nuclear_inverse_mass = 0;
     double nuclear_radius = 0;
     double nuclear_thickness = 0;
+    bool m = false;
     // Lattice
     unsigned lattice_num_points = 0;
     double lattice_start_point = 0;
@@ -120,18 +119,19 @@ struct GlobalSpecification {
     bool ci_print_configurations = false;
     bool ci_print_rel_configurations = false;
     bool ci_scalapack = false;
-    double ci_max_energy = 0.0;
-    std::pair<double, double> ci_configuration_average_energy_range;
+    std::optional<double> ci_max_energy;
+    std::optional<std::pair<double, double> > ci_configuration_average_energy_range;
     unsigned ci_chunksize = 4;
     bool ci_sort_matrix_by_configuration = false;
     // CI/Output
     bool ci_output_print_hamiltonian = false;
     bool ci_output_write_hamiltonian = false;
-    double ci_output_max_displayed_energy = 0.0;
-    double ci_min_displayed_percent = 0.0;
-    bool ci_output_display_print_inline = false;
-    std::string ci_output_string_separator = " ";
+    std::optional<double> ci_output_max_displayed_energy;
+    std::optional<double> ci_output_min_displayed_percent;
+    bool ci_output_print_inline = false;
+    std::optional<std::string> ci_output_separator;
     bool ci_output_print_relativistic_configurations = false;
+    bool ci_output_no_configs = false;
     // CI/SmallSide
     std::string ci_smallside_leading_configurations;
     unsigned ci_smallside_electron_excitations;
@@ -139,7 +139,7 @@ struct GlobalSpecification {
     unsigned ci_smallside_hole_excitations = 0;
     bool ci_smallside_print_configurations = false;
     bool ci_smallside_print_rel_configurations = false;
-    std::pair<double, double> ci_smallside_configuration_average_energy_range;
+    std::optional<std::pair<double, double> > ci_smallside_configuration_average_energy_range;
     // MBPT
     std::optional<std::string> mbpt_basis;
     std::optional<std::string> mbpt_energy_denom_orbitals;
@@ -150,9 +150,13 @@ struct GlobalSpecification {
     bool mbpt_no_extra_box;
     double mbpt_energy_denom_floor = 0.01;
     double mbpt_delta = 0.0;
-    std::vector<unsigned> mbpt_twobody_storage_limits;
-    std::vector<double> mbpt_onebody_scaling;
+    std::optional<std::vector<unsigned> > mbpt_twobody_storage_limits;
+    std::optional<std::vector<double> > mbpt_onebody_scaling;
     bool mbpt_brueckner = false;
+    // NOTE: Always use these when checking which MBPT diagrams to include
+    bool mbpt_one_body = false;
+    bool mbpt_two_body = false;
+    bool mbpt_three_body = false;
     // MBPT/Brueckner
     double mbpt_brueckner_startpoint = 4.35e-5;
     double mbpt_brueckner_endpoint = 8.0;
@@ -162,6 +166,21 @@ struct GlobalSpecification {
     bool mbpt_brueckner_use_lower = false;
     bool mbpt_brueckner_use_lower_lower = false;
     bool mbpt_brueckner_excited = false;
+    // We need to explicitly enumerate the options for MBPT diagrams: s1, s2, s3, s12, s123, s13
+    // and s23. It's kind of clunky to use these directly in the main body of the code, so we
+    // obfuscate them here and then, during the spec validation, set the more general attributes:
+    // mbpt_one_body, mbpt_two_body, mbpt_three_body as appropriate
+    // NOTE: Don't use these directly in AMBiT, use GlobalSpecification::mbpt_one_body and friends
+    // TODO EVK: Really want to be able to make these private, but GlobalSpecification is declared
+    // globally, so it doesn't work. Probably need to move the parsing stuff into a separate class
+    // so I can make it a friend
+    bool _s1 = false;
+    bool _s2 = false;
+    bool _s3 = false;
+    bool _s123 = false;
+    bool _s12 = false;
+    bool _s13 = false;
+    bool _s23 = false;
 };
 
 // On success, return empty string.
@@ -171,7 +190,7 @@ std::string importSpecificationFile(GlobalSpecification&, const std::string& fil
 std::string importSpecificationKV(GlobalSpecification&, const std::string& assignment);
 
 // Perform global validation of specifications. Return non-empty error message on failure.
-std::string validateSpecification(const GlobalSpecification&);
+std::string validateAndNormaliseSpecification(GlobalSpecification&);
 
 // Return a map-like interface to the configuration, which lets us do nice things like 
 // config_map["key"] = "value"

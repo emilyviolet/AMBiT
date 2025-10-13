@@ -22,9 +22,18 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"ID",                      &GlobalSpecification::ID, P::nonempty()},
     {"Z",                       &GlobalSpecification::Z, positive},
     {"LevelDirectory",          &GlobalSpecification::level_directory},
-    {"-s1",                     &GlobalSpecification::s1},
-    {"-s2",                     &GlobalSpecification::s2},
-    {"-s3",                     &GlobalSpecification::s3},
+    // NOTE: Don't check "GlobalSpecification::s1" and friends in the main body of the code, use
+    // "GlobalSpecification::mbpt_one_body" etc instead; it's much cleaner to figure out which
+    // integrals to include once when normalising the spec
+    {"-m",                     &GlobalSpecification::m},
+    {"-s1",                     &GlobalSpecification::_s1},
+    {"-s2",                     &GlobalSpecification::_s2},
+    {"-s3",                     &GlobalSpecification::_s3},
+    {"-s12",                     &GlobalSpecification::_s12},
+    {"-s13",                     &GlobalSpecification::_s13},
+    {"-s23",                     &GlobalSpecification::_s23},
+    {"-s123",                     &GlobalSpecification::_s123},
+
     {"--no-new-mbpt",           &GlobalSpecification::no_new_mbpt},
     {"--check-sizes",           &GlobalSpecification::check_sizes},
     {"-c",                      &GlobalSpecification::clean_run},
@@ -116,11 +125,19 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"CI/--single-configuration-CI",            &GlobalSpecification::ci_single_configuration_ci},
     {"CI/--print-configurations",               &GlobalSpecification::ci_print_configurations},
     {"CI/--print-relativistic-configurations",  &GlobalSpecification:: ci_print_rel_configurations},
-    {"CI/--scalapack",                          &GlobalSpecification::ci_scalapack},
-    {"CI/MaxEnergy",                            &GlobalSpecification::ci_max_energy},
-    {"CI/ConfigurationAverageEnergyRange",      &GlobalSpecification::ci_configuration_average_energy_range},
-    {"CI/ChunkSize",                            &GlobalSpecification::ci_chunksize},
-    {"CI/--sort-matrix-by-configuration",       &GlobalSpecification::ci_sort_matrix_by_configuration}, 
+    {"CI/--scalapack",                                     &GlobalSpecification::ci_scalapack},
+    {"CI/MaxEnergy",                                       &GlobalSpecification::ci_max_energy},
+    {"CI/ConfigurationAverageEnergyRange",                 &GlobalSpecification::ci_configuration_average_energy_range},
+    {"CI/ChunkSize",                                       &GlobalSpecification::ci_chunksize},
+    {"CI/--sort-matrix-by-configuration",                  &GlobalSpecification::ci_sort_matrix_by_configuration}, 
+    {"CI/Output/--write-hamiltonian",                      &GlobalSpecification::ci_output_write_hamiltonian}, 
+    {"CI/Output/--print-hamiltonian",                      &GlobalSpecification::ci_output_print_hamiltonian}, 
+    {"CI/Output/--print-inline",                          &GlobalSpecification::ci_output_print_inline}, 
+    {"CI/Output/--print-relativistic-configurations",     &GlobalSpecification::ci_output_print_relativistic_configurations}, 
+    {"CI/Output/--no-configs",                            &GlobalSpecification::ci_output_no_configs}, 
+    {"CI/Output/MaxDisplayedEnergy",                      &GlobalSpecification::ci_output_max_displayed_energy}, 
+    {"CI/Output/MinDisplayedPercent",                     &GlobalSpecification::ci_output_min_displayed_percent}, 
+    {"CI/Output/Separator",                               &GlobalSpecification::ci_output_separator}, 
     {"MBPT/Basis",                             &GlobalSpecification::mbpt_basis}, 
     {"MBPT/EnergyDenomOrbitals",               &GlobalSpecification::mbpt_energy_denom_orbitals}, 
     {"MBPT/--use-valence",                     &GlobalSpecification::mbpt_use_valence}, 
@@ -155,7 +172,7 @@ std::string importSpecificationKV(GlobalSpecification& gs, const std::string& as
 }
 
 // Perform global validation of specifications. Return non-empty error message on failure.
-std::string validateSpecification(const GlobalSpecification& gs) {
+std::string validateAndNormaliseSpecification(GlobalSpecification& gs) {
     // Check for consistent Lattice settings:
 
     if (gs.lattice_exponential && gs.lattice_end_point>0)
@@ -188,6 +205,27 @@ std::string validateSpecification(const GlobalSpecification& gs) {
         if(count != 1)
             return "Must specify exactly one of HF/Yukawa/Mass, HF/Yukawa/MassEV, or HF/Yukawa/Rc when using HF/Yukawa";
     }
+    
+    // Set the general MBPT (one|two|three)_body_integral variables
+    if(gs._s1 || gs._s12 || gs._s13 || gs._s123)
+    {
+        gs.mbpt_one_body = true;
+    }
+    if(gs._s2 || gs._s12 || gs._s23 || gs._s123)
+    {
+        gs.mbpt_two_body = true;
+    }
+    if(gs._s3 || gs._s13 || gs._s23 || gs._s123)
+    {
+        gs.mbpt_three_body = true;
+    }
+    
+    // Must specify LevelDirectory if using CI/--memory-saver
+    if(gs.ci_memory_saver && !gs.level_directory)
+        return "Must specify LevelDirectory when using CI/--memory-saver";
+    // Can't request both CI/--gfactors and CI/--no-gfactors
+    if (gs.ci_gfactors && gs.ci_no_gfactors)
+        return "CI/--gfactors and CI/--no-gfactors cannot both be set at the same time";
 
     // Oll Korrect
     return "";
