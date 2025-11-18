@@ -119,7 +119,7 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"Basis/BSpline/SplineType",    &GlobalSpecification::basis_bspline_splinetype},
     // CI
     {"CI/LeadingConfigurations",                &GlobalSpecification::ci_leading_configurations},
-    {"CI/LeadingRelativisticConfigurations",    &GlobalSpecification:: ci_leading_rel_configurations},
+    {"CI/LeadingRelativisticConfigurations",    &GlobalSpecification::ci_leading_rel_configurations},
     {"CI/ExtraConfigurations",                  &GlobalSpecification::ci_extra_configurations},
     {"CI/ExtraRelativisticConfigurations",      &GlobalSpecification::ci_extra_rel_configurations},
     {"CI/ElectronExcitations",                  &GlobalSpecification::ci_electron_excitations},
@@ -148,6 +148,14 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"CI/Output/MaxDisplayedEnergy",                      &GlobalSpecification::ci_output_max_displayed_energy}, 
     {"CI/Output/MinDisplayedPercent",                     &GlobalSpecification::ci_output_min_displayed_percent}, 
     {"CI/Output/Separator",                               &GlobalSpecification::ci_output_separator}, 
+// CI/SmallSide
+    {"CI/SmallSide",                                      &GlobalSpecification::ci_do_smallside},
+    {"CI/SmallSide/LeadingConfigurations",                &GlobalSpecification::ci_smallside_leading_configurations},
+    {"CI/SmallSide/LeadingRelativisticConfigurations",    &GlobalSpecification::ci_smallside_leading_rel_configurations},
+    {"CI/SmallSide/ElectronExcitations",                  &GlobalSpecification::ci_smallside_electron_excitations},
+    {"CI/SmallSide/ExcitationBounds",                     &GlobalSpecification::ci_smallside_excitation_bounds},
+    {"CI/SmallSide/HoleExcitations",                      &GlobalSpecification::ci_smallside_hole_excitations},
+// MBPT
     {"MBPT/Basis",                             &GlobalSpecification::mbpt_basis}, 
     {"MBPT/EnergyDenomOrbitals",               &GlobalSpecification::mbpt_energy_denom_orbitals}, 
     {"MBPT/--use-valence",                     &GlobalSpecification::mbpt_use_valence}, 

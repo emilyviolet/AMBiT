@@ -145,7 +145,9 @@ public:
     bool ci_output_print_relativistic_configurations = false;
     bool ci_output_no_configs = false;
     // CI/SmallSide
+    bool ci_do_smallside = false;
     std::string ci_smallside_leading_configurations;
+    std::string ci_smallside_leading_rel_configurations;
     unsigned ci_smallside_electron_excitations;
     std::optional<std::vector<std::string>> ci_smallside_excitation_bounds;
     unsigned ci_smallside_hole_excitations = 0;
