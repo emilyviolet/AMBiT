@@ -42,7 +42,7 @@ pCore Atom::MakeBasis(pCoreConst hf_open_core_start)
             else
             {
                 unsigned num_points = specification->lattice_num_points;
-                double start_point = specification->lattice_num_points;
+                double start_point = specification->lattice_start_point;
                 double end_point = specification->lattice_end_point;
                 lattice = pLattice(new Lattice(num_points, start_point, end_point));
             }
