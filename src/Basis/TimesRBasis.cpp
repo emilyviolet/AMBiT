@@ -3,6 +3,7 @@
 #include "BasisGenerator.h"
 #include "HartreeFock/HartreeFocker.h"
 #include "HartreeFock/ConfigurationParser.h"
+#include "Specification/Specification.h"
 #include "Universal/MathConstant.h"
 #include "boost/algorithm/string/split.hpp"
 #include "boost/algorithm/string/classification.hpp"
@@ -13,6 +14,7 @@ namespace Ambit
 // This file contains the basis creation function from BasisGenerator as well as CustomBasis
 pOrbitalMap BasisGenerator::GenerateXRExcited(const std::vector<int>& max_pqn)
 {
+    auto specification = GlobalSpecification::Instance();
     pOrbitalMap excited(new OrbitalMap(lattice));
 
     if(!max_pqn.size())
@@ -32,7 +34,7 @@ pOrbitalMap BasisGenerator::GenerateXRExcited(const std::vector<int>& max_pqn)
     std::vector<XRInstruction> xRinstructions;
     std::vector<NonRelInfo> HFinstructions;
 
-    std::optional<std::vector<std::string> > custom_orbitals_opt = specification.basis_xr_custom_orbitals;
+    std::optional<std::vector<std::string> > custom_orbitals_opt = specification->basis_xr_custom_orbitals;
     if(custom_orbitals_opt)
     {
         auto custom_orbitals = custom_orbitals_opt.value();
@@ -97,7 +99,7 @@ pOrbitalMap BasisGenerator::GenerateXRExcited(const std::vector<int>& max_pqn)
     HartreeFocker HF_Solver(ode_solver);
 
     // Do HF orbitals first. This ensures the lattice is large enough and that the starting levels exist.
-    std::optional<std::string> hf_orbitals = specification.basis_hf_orbitals;
+    std::optional<std::string> hf_orbitals = specification->basis_hf_orbitals;
     if(hf_orbitals)
     {
         std::string hf_valence_states = hf_orbitals.value();

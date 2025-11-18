@@ -17,6 +17,17 @@ P::hopefully<void> custom_import_ini(Record& rec, const P::specification_map<Rec
 
 inline auto positive = P::greater_than(0, "must be positive");
 
+
+GlobalSpecification* GlobalSpecification::Instance()
+{
+    static GlobalSpecification instance;
+    return &instance;
+}
+
+GlobalSpecification::GlobalSpecification()
+{
+}
+
 P::specification<GlobalSpecification> global_specifications[] = {
     // Ungrouped options
     {"ID",                      &GlobalSpecification::ID, P::nonempty()},
@@ -33,7 +44,6 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"-s13",                     &GlobalSpecification::_s13},
     {"-s23",                     &GlobalSpecification::_s23},
     {"-s123",                     &GlobalSpecification::_s123},
-
     {"--no-new-mbpt",           &GlobalSpecification::no_new_mbpt},
     {"--check-sizes",           &GlobalSpecification::check_sizes},
     {"-c",                      &GlobalSpecification::clean_run},
@@ -155,35 +165,35 @@ P::specification<GlobalSpecification> global_specifications[] = {
 
 P::specification_map<GlobalSpecification> global_specifications_dict(global_specifications, P::keys_lc_nows);
 
-std::string importSpecificationFile(GlobalSpecification& gs, const std::string& fileName) {
+std::string importSpecificationFile(GlobalSpecification* gs, const std::string& fileName) {
     std::ifstream in(fileName);
     if (!in) return "unable to open input file '"+fileName+"'";
 
-    auto h = custom_import_ini(gs, global_specifications_dict, in);
+    auto h = custom_import_ini(*gs, global_specifications_dict, in);
     if (!h) return P::explain(h.error(), true);
 
     return "";
 }
 
-std::string importSpecificationKV(GlobalSpecification& gs, const std::string& assignment) {
-    auto h = P::import_k_eq_v(gs, global_specifications_dict, assignment);
+std::string importSpecificationKV(GlobalSpecification* gs, const std::string& assignment) {
+    auto h = P::import_k_eq_v(*gs, global_specifications_dict, assignment);
     if (!h) return P::explain(h.error(), true);
     else return "";
 }
 
 // Perform global validation of specifications. Return non-empty error message on failure.
-std::string validateAndNormaliseSpecification(GlobalSpecification& gs) {
+std::string GlobalSpecification::validateAndNormaliseSpecification() {
     // Check for consistent Lattice settings:
 
-    if (gs.lattice_exponential && gs.lattice_end_point>0)
+    if (lattice_exponential && lattice_end_point>0)
         return "Lattice/EndPoint is ignored if Lattice/--exp-lattice is set";
 
     // Check for consistency in HF decorators (e.g. cannot request both nonrelativistic and
     // relativistic-only constraints)
-    if (gs.hf_only_rel_nms && gs.hf_nonrel_mass_shift)
+    if (hf_only_rel_nms && hf_nonrel_mass_shift)
         return "HF/--only-relativistic-nms and HF/--nonrelativistic-mass-shift cannot both be set at the same time";
     // Must have at least one of HF/N and HF/Charge, so error out if these are missing
-    if((!gs.hf_charge) && (!gs.hf_N))
+    if((!hf_charge) && (!hf_N))
         return "Must specify at least one of HF/N or HF/Charge";
     
     // Yukawa interaction has three possible parameters to determine its mass: Mass, MassEV and
@@ -192,14 +202,14 @@ std::string validateAndNormaliseSpecification(GlobalSpecification& gs) {
     //
     // Count the number of parameters which are set. There's only three so a dumb solution is
     // okay
-    if(gs.hf_do_yukawa)
+    if(hf_do_yukawa)
     {
         unsigned count = 0;
-        if(gs.hf_yukawa_mass)
+        if(hf_yukawa_mass)
             count++;
-        if(gs.hf_yukawa_massev)
+        if(hf_yukawa_massev)
             count++;
-        if(gs.hf_yukawa_rc)
+        if(hf_yukawa_rc)
             count++;
 
         if(count != 1)
@@ -207,24 +217,24 @@ std::string validateAndNormaliseSpecification(GlobalSpecification& gs) {
     }
     
     // Set the general MBPT (one|two|three)_body_integral variables
-    if(gs._s1 || gs._s12 || gs._s13 || gs._s123)
+    if(_s1 || _s12 || _s13 || _s123)
     {
-        gs.mbpt_one_body = true;
+        mbpt_one_body = true;
     }
-    if(gs._s2 || gs._s12 || gs._s23 || gs._s123)
+    if(_s2 || _s12 || _s23 || _s123)
     {
-        gs.mbpt_two_body = true;
+        mbpt_two_body = true;
     }
-    if(gs._s3 || gs._s13 || gs._s23 || gs._s123)
+    if(_s3 || _s13 || _s23 || _s123)
     {
-        gs.mbpt_three_body = true;
+        mbpt_three_body = true;
     }
     
     // Must specify LevelDirectory if using CI/--memory-saver
-    if(gs.ci_memory_saver && !gs.level_directory)
+    if(ci_memory_saver && !level_directory)
         return "Must specify LevelDirectory when using CI/--memory-saver";
     // Can't request both CI/--gfactors and CI/--no-gfactors
-    if (gs.ci_gfactors && gs.ci_no_gfactors)
+    if (ci_gfactors && ci_no_gfactors)
         return "CI/--gfactors and CI/--no-gfactors cannot both be set at the same time";
 
     // Oll Korrect

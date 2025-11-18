@@ -1,6 +1,7 @@
 #include "BasisGenerator.h"
 #include "BSplineBasis.h"
 #include "Include.h"
+#include "Specification/Specification.h"
 #include "Universal/SpinorFunction.h"
 #include "Universal/PhysicalConstant.h"
 #include <Eigen/Eigen>
@@ -11,6 +12,7 @@ namespace Ambit
 // This file contains B-spline routines from BasisGenerator as well as BSplineBasis
 pOrbitalMap BasisGenerator::GenerateBSplines(const std::vector<int>& max_pqn)
 {
+    auto specification = GlobalSpecification::Instance();
     pOrbitalMap excited(new OrbitalMap(lattice));
 
     if(!max_pqn.size())
@@ -19,7 +21,7 @@ pOrbitalMap BasisGenerator::GenerateBSplines(const std::vector<int>& max_pqn)
     bool debug = DebugOptions.OutputHFExcited();
 
     // Get spline type and parameters
-    std::string spline_type_string = specification.basis_bspline_splinetype;
+    std::string spline_type_string = specification->basis_bspline_splinetype;
     // Parse the string from the user-input to get the Spline type.
     // TODO EVK: this should probably be done in the config-parser, but I can't think of how to
     // make this work with the nice map-like interface
@@ -35,18 +37,18 @@ pOrbitalMap BasisGenerator::GenerateBSplines(const std::vector<int>& max_pqn)
     // Check if the user has specified a different RMax in Basis/BSpline/Rmax. If they haven't,
     // then just use the current maximum lattice size
     double rmax;
-    if(specification.basis_bspline_rmax)
+    if(specification->basis_bspline_rmax)
     {
-        rmax = specification.basis_bspline_rmax.value();
+        rmax = specification->basis_bspline_rmax.value();
     }
     else
     {
         rmax = lattice->MaxRealDistance();
     }
 
-    unsigned k = specification.basis_bspline_k;
-    double dr0 = specification.basis_bspline_r0;
-    unsigned n = specification.basis_bspline_N;
+    unsigned k = specification->basis_bspline_k;
+    double dr0 = specification->basis_bspline_r0;
+    unsigned n = specification->basis_bspline_N;
 
     if(rmax > lattice->MaxRealDistance())
         lattice->resize(rmax);

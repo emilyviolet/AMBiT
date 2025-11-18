@@ -22,7 +22,7 @@ class Sigma3Calculator;
 class Atom
 {
 public:
-    Atom(const MultirunOptions userInput, GlobalSpecification specification, unsigned int atomic_number, const std::string& atom_identifier);
+    Atom(const MultirunOptions userInput, unsigned int atomic_number, const std::string& atom_identifier);
     ~Atom();
 
     /** Read existing basis or perform Hartree-Fock calculation
@@ -154,8 +154,6 @@ public:
 
 protected:
     MultirunOptions user_input;
-    GlobalSpecification specification;
-
 
     std::string identifier;
     double Z;         // Nuclear charge

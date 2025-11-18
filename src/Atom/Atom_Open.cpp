@@ -1,3 +1,4 @@
+#include "Specification/Specification.h"
 #ifdef AMBIT_USE_MPI
 #include <mpi.h>
 #endif
@@ -23,16 +24,17 @@ namespace Ambit
 {
 void Atom::MakeMBPTIntegrals()
 {
-    bool check_sizes = specification.check_sizes;
-    bool one_body_mbpt = specification.mbpt_one_body;
-    bool two_body_mbpt = specification.mbpt_two_body;
+    auto specification = GlobalSpecification::Instance();
+    bool check_sizes = specification->check_sizes;
+    bool one_body_mbpt = specification->mbpt_one_body;
+    bool two_body_mbpt = specification->mbpt_two_body;
 
     // Bare integrals for MBPT
     pHFIntegrals bare_one_body_integrals = std::make_shared<HFIntegrals>(orbitals, hf);
     pSlaterIntegrals bare_two_body_integrals = std::make_shared<SlaterIntegralsFlatHash>(orbitals, hartreeY);
 
     // MBPT calculators
-    std::optional<std::string> fermi_orbitals = specification.mbpt_energy_denom_orbitals;
+    std::optional<std::string> fermi_orbitals = specification->mbpt_energy_denom_orbitals;
     pCoreMBPTCalculator core_mbpt = std::make_shared<CoreMBPTCalculator>(orbitals, bare_one_body_integrals, bare_two_body_integrals, fermi_orbitals);
     pValenceMBPTCalculator val_mbpt = std::make_shared<ValenceMBPTCalculator>(orbitals, bare_one_body_integrals, bare_two_body_integrals, fermi_orbitals);
 
@@ -55,27 +57,27 @@ void Atom::MakeMBPTIntegrals()
     }
 
     // We can always force subtraction diagrams, and it's always a good idea if there have been injected orbitals
-    if(specification.mbpt_use_subtraction || specification.basis_inject_orbitals)
+    if(specification->mbpt_use_subtraction || specification->basis_inject_orbitals)
         is_open_shell = true;
-    if(specification.mbpt_no_subtraction)
+    if(specification->mbpt_no_subtraction)
         is_open_shell = false;
 
-    bool use_box = !specification.mbpt_no_extra_box;
-    bool include_core = !specification.mbpt_no_core;
+    bool use_box = !specification->mbpt_no_extra_box;
+    bool include_core = !specification->mbpt_no_core;
     mbpt_integrals_one->IncludeCore(include_core, include_core && is_open_shell);
     mbpt_integrals_two->IncludeCore(include_core, include_core && is_open_shell, include_core && use_box);
 
-    bool include_valence = specification.mbpt_use_valence;
+    bool include_valence = specification->mbpt_use_valence;
     mbpt_integrals_one->IncludeValence(include_valence && is_open_shell);
     mbpt_integrals_two->IncludeValence(include_valence, include_valence && is_open_shell, include_valence && use_box);
 
     // Adjust delta
-    double delta = specification.mbpt_delta;
+    double delta = specification->mbpt_delta;
     core_mbpt->SetEnergyShift(delta);
     val_mbpt->SetEnergyShift(delta);
 
     // Also set a floor for the valence-MBPT energy denominators
-    double energy_denom_floor = specification.mbpt_energy_denom_floor;
+    double energy_denom_floor = specification->mbpt_energy_denom_floor;
     *logstream << "MBPT denominator floor = " << energy_denom_floor << std::endl;
     core_mbpt->SetEnergyFloor(energy_denom_floor);
     val_mbpt->SetEnergyFloor(energy_denom_floor);
@@ -96,9 +98,9 @@ void Atom::MakeMBPTIntegrals()
 
     if(two_body_mbpt || check_sizes)
     {
-        if(specification.mbpt_twobody_storage_limits)
+        if(specification->mbpt_twobody_storage_limits)
         {
-            std::vector<unsigned int> limits = specification.mbpt_twobody_storage_limits.value();
+            std::vector<unsigned int> limits = specification->mbpt_twobody_storage_limits.value();
             unsigned int num_limits = limits.size();
             for(unsigned int i = 0; i < mmin(num_limits, 4); i++)
             {
@@ -171,12 +173,13 @@ void Atom::MakeMBPTIntegrals()
 
 void Atom::MakeCIIntegrals()
 {
+    auto specification = GlobalSpecification::Instance();
     ClearIntegrals();
 
     pSlaterIntegrals two_body_integrals;
-    bool one_body_mbpt = specification.mbpt_one_body;
-    bool two_body_mbpt = specification.mbpt_two_body;
-    bool three_body_mbpt = specification.mbpt_three_body;
+    bool one_body_mbpt = specification->mbpt_one_body;
+    bool two_body_mbpt = specification->mbpt_two_body;
+    bool three_body_mbpt = specification->mbpt_three_body;
 
     if(!two_body_mbpt)
         two_body_integrals.reset(new SlaterIntegralsFlatHash(orbitals, hartreeY));
@@ -185,20 +188,20 @@ void Atom::MakeCIIntegrals()
 
     if(three_body_mbpt)
     {
-        std::optional<std::string> fermi_orbitals = specification.mbpt_energy_denom_orbitals;
+        std::optional<std::string> fermi_orbitals = specification->mbpt_energy_denom_orbitals;
         threebody_electron = std::make_shared<Sigma3Calculator>(orbitals, two_body_integrals, fermi_orbitals);
-        threebody_electron->IncludeCore(!specification.mbpt_no_core);
-        threebody_electron->IncludeValence(specification.mbpt_use_valence);
+        threebody_electron->IncludeCore(!specification->mbpt_no_core);
+        threebody_electron->IncludeValence(specification->mbpt_use_valence);
     }
 
     auto& valence = orbitals->valence;
 
     // We don't need the two body integrals if we are just checking sizes and they are not needed by ConfigGenerator.
-    if(specification.check_sizes
-       && !specification.ci_configuration_average_energy_range
-       && !specification.ci_smallside_configuration_average_energy_range
-       && !specification.ci_print_configurations && !specification.ci_print_rel_configurations
-       && !specification.ci_smallside_print_configurations && !specification.ci_smallside_print_rel_configurations)
+    if(specification->check_sizes
+       && !specification->ci_configuration_average_energy_range
+       && !specification->ci_smallside_configuration_average_energy_range
+       && !specification->ci_print_configurations && !specification->ci_print_rel_configurations
+       && !specification->ci_smallside_print_configurations && !specification->ci_smallside_print_rel_configurations)
     {
         unsigned int size = two_body_integrals->CalculateTwoElectronIntegrals(valence, valence, valence, valence, true);
         *outstream << "\nNum Coulomb integrals: " << size << std::endl;
@@ -212,19 +215,19 @@ void Atom::MakeCIIntegrals()
         hf_electron->CalculateOneElectronIntegrals(valence, valence);
 
         // Don't need two body integrals if we're not doing CI
-        if(!specification.no_ci)
+        if(!specification->no_ci)
         {
             two_body_integrals->CalculateTwoElectronIntegrals(valence, valence, valence, valence);
-            if(specification.check_sizes)
+            if(specification->check_sizes)
                 *outstream << "\nNum Coulomb integrals: " << two_body_integrals->size() << std::endl;
         }
 
         // Add stored MBPT integrals
         if(one_body_mbpt)
         {
-            if(specification.mbpt_onebody_scaling)
+            if(specification->mbpt_onebody_scaling)
             {
-                std::vector<double> scaling = specification.mbpt_onebody_scaling.value();
+                std::vector<double> scaling = specification->mbpt_onebody_scaling.value();
                 std::map<int, double> scaling_map;
                 for(int i = 0; i < scaling.size()-1; i+=2)
                 {
@@ -242,7 +245,7 @@ void Atom::MakeCIIntegrals()
         if(two_body_mbpt)
             two_body_integrals->Read(identifier + ".two.int");
 
-        bool include_box = two_body_mbpt && !specification.mbpt_no_extra_box;
+        bool include_box = two_body_mbpt && !specification->mbpt_no_extra_box;
         bool include_off_parity = include_box || hartreeY->OffParityExists();
         twobody_electron = std::make_shared<TwoElectronCoulombOperator>(two_body_integrals, include_off_parity);
 
@@ -250,7 +253,7 @@ void Atom::MakeCIIntegrals()
         if(three_body_mbpt)
         {
             threebody_electron->UpdateIntegrals();
-            if(specification.check_sizes)
+            if(specification->check_sizes)
                 *outstream << "\nSigma3 Coulomb integrals: " << threebody_electron->GetStorageSize() << std::endl;
         }
     }
@@ -281,12 +284,13 @@ void Atom::InitialiseAngularDataLibrary(pAngularDataLibrary trial)
 
 pLevelStore Atom::ChooseHamiltoniansAndRead(pAngularDataLibrary angular_lib)
 {
+    auto specification = GlobalSpecification::Instance();
     // Read existing levels?
     bool use_read = true;
-    if(specification.clean_run)
+    if(specification->clean_run)
         use_read = false;
 
-    if(specification.configuration_average)
+    if(specification->configuration_average)
     {
         ConfigGenerator gen(orbitals, user_input);
         if(twobody_electron == nullptr)
@@ -301,11 +305,11 @@ pLevelStore Atom::ChooseHamiltoniansAndRead(pAngularDataLibrary angular_lib)
     // Get angular library
     InitialiseAngularDataLibrary(angular_lib);
 
-    if(specification.ci_memory_saver)
+    if(specification->ci_memory_saver)
     {
         // LevelDirectory must have a value if we're running with --memory-saver and this has been
         // enforced by the specification
-        std::string dir = specification.level_directory.value();
+        std::string dir = specification->level_directory.value();
         if(dir.empty())
             levels = std::make_shared<FileSystemLevelStore>(identifier, angular_library);
         else
@@ -314,9 +318,9 @@ pLevelStore Atom::ChooseHamiltoniansAndRead(pAngularDataLibrary angular_lib)
     else if(use_read)
     {
         pHamiltonianID key;
-        if(specification.no_ci)
+        if(specification->no_ci)
             key = std::make_shared<SingleOrbitalID>();
-        else if(specification.ci_single_configuration_ci)
+        else if(specification->ci_single_configuration_ci)
             key = std::make_shared<NonRelID>();
         else
             key = std::make_shared<HamiltonianID>();
@@ -326,7 +330,7 @@ pLevelStore Atom::ChooseHamiltoniansAndRead(pAngularDataLibrary angular_lib)
     else
         levels = std::make_shared<LevelMap>(identifier, angular_library);
 
-    if(specification.no_ci)
+    if(specification->no_ci)
     {
         // Use all symmetries from valence set
         pHamiltonianID key;
@@ -358,6 +362,7 @@ pLevelStore Atom::ChooseHamiltoniansAndRead(pAngularDataLibrary angular_lib)
 
 pLevelStore Atom::ChooseHamiltonians(pRelativisticConfigList rlist)
 {
+    auto specification = GlobalSpecification::Instance();
     // TODO EVK: the user input has these as unsigned integers (they have to be, because it doesn't
     // make any sense to pass a negative value for 2J in the config file), but all the
     // HamiltonianID objects take signed integers. Should probably change this over, but would need
@@ -368,21 +373,21 @@ pLevelStore Atom::ChooseHamiltonians(pRelativisticConfigList rlist)
 
     // Get user symmetries if CI/--all-symmetries is not used. Fine to just do a deep-copy from the
     // "specification" struct
-    if(!specification.ci_all_symmetries)
+    if(!specification->ci_all_symmetries)
     {
         // Even parity
-        even_symmetries = specification.ci_even_parity_twoj;
+        even_symmetries = specification->ci_even_parity_twoj;
         // Odd parity
-        odd_symmetries = specification.ci_odd_parity_twoj;
+        odd_symmetries = specification->ci_odd_parity_twoj;
     }
 
     // Single configuration CI: each Hamiltonian only uses one non-rel configuration
-    if(specification.ci_single_configuration_ci)
+    if(specification->ci_single_configuration_ci)
     {
         ConfigGenerator gen(orbitals, user_input);
         pConfigList nrlist = gen.GenerateNonRelConfigurations(rlist);
 
-        if(specification.ci_all_symmetries)
+        if(specification->ci_all_symmetries)
         {
             // Populate levels with all symmetries
             for(auto& nrconfig: nrlist->first)
@@ -425,7 +430,7 @@ pLevelStore Atom::ChooseHamiltonians(pRelativisticConfigList rlist)
     // Standard CI: all configs together
     else
     {   // Get symmetries
-        if(specification.ci_all_symmetries)
+        if(specification->ci_all_symmetries)
         {
             int max_twoJ_even = -1;
             int max_twoJ_odd = -1;
@@ -465,7 +470,8 @@ pLevelStore Atom::ChooseHamiltonians(pRelativisticConfigList rlist)
 /** Check sizes of matrices before doing full scale calculation. */
 void Atom::CheckMatrixSizes(pAngularDataLibrary angular_lib)
 {
-    if(specification.no_ci)
+    auto specification = GlobalSpecification::Instance();
+    if(specification->no_ci)
         return;
 
     // Get angular library
@@ -528,7 +534,7 @@ void Atom::CheckMatrixSizes(pAngularDataLibrary angular_lib)
     *outstream << "\nTotal number of levels (all symmetries included) = " << total_levels << std::endl;
 
     // Get Hamiltonian sizes for single configurations
-    if(specification.ci_single_configuration_ci)
+    if(specification->ci_single_configuration_ci)
     {
         *outstream << "\nHamiltonian matrix sizes: " << std::endl;
         for(auto& key: levels->keys)
@@ -563,9 +569,10 @@ pLevelStore Atom::CalculateEnergies()
 
 LevelVector Atom::CalculateEnergies(pHamiltonianID hID)
 {
+    auto specification = GlobalSpecification::Instance();
     // Check whether to reuse levels and matrix files
     bool use_read = true;
-    if(specification.clean_run)
+    if(specification->clean_run)
         use_read = false;
 
     // This function is public and can call the other CalculateEnergies variants.
@@ -602,10 +609,10 @@ LevelVector Atom::CalculateEnergies(pHamiltonianID hID)
                 {
                     if(allconfigs == nullptr)
                     {
-                        if(specification.ci_configuration_average_energy_range
-                           || specification.ci_smallside_configuration_average_energy_range
-                           || specification.ci_print_configurations && !specification.ci_print_rel_configurations
-                           || specification.ci_smallside_print_configurations && !specification.ci_smallside_print_rel_configurations)
+                        if(specification->ci_configuration_average_energy_range
+                           || specification->ci_smallside_configuration_average_energy_range
+                           || specification->ci_print_configurations && !specification->ci_print_rel_configurations
+                           || specification->ci_smallside_print_configurations && !specification->ci_smallside_print_rel_configurations)
                         {
                             if(twobody_electron == nullptr)
                                 MakeCIIntegrals();
@@ -625,7 +632,7 @@ LevelVector Atom::CalculateEnergies(pHamiltonianID hID)
         }
 
         // Only continue if we don't have enough levels
-        int num_solutions = specification.ci_num_solutions;
+        int num_solutions = specification->ci_num_solutions;
         num_solutions = (num_solutions? mmin(num_solutions, configs->NumCSFs()): configs->NumCSFs());
         bool do_CI = (levelvec.levels.size() < num_solutions);
         if(do_CI)
@@ -634,7 +641,7 @@ LevelVector Atom::CalculateEnergies(pHamiltonianID hID)
                 MakeCIIntegrals();
 
             // If we're using OpenMP then the chunksize should be a multiple of the number of threads
-            int chunksize = specification.ci_chunksize;
+            int chunksize = specification->ci_chunksize;
 
             std::unique_ptr<HamiltonianMatrix> H;
             if(threebody_electron)
@@ -664,11 +671,11 @@ LevelVector Atom::CalculateEnergies(pHamiltonianID hID)
                 H->GenerateMatrix(chunksize);
                 //H->PollMatrix();
 
-                if(specification.ci_output_write_hamiltonian)
+                if(specification->ci_output_write_hamiltonian)
                     H->Write(hamiltonian_filename);
             }
 
-            if(specification.ci_output_print_hamiltonian)
+            if(specification->ci_output_print_hamiltonian)
             {
                 auto rel_it = configs->begin();
                 while(rel_it != configs->end())
@@ -686,11 +693,11 @@ LevelVector Atom::CalculateEnergies(pHamiltonianID hID)
             }
 
             #ifdef AMBIT_USE_SCALAPACK
-            if(specification.ci_scalapack)
+            if(specification->ci_scalapack)
             {
-                if(specification.ci_max_energy)
+                if(specification->ci_max_energy)
                 {
-                    double max_energy = specification.ci_max_energy.value();
+                    double max_energy = specification->ci_max_energy.value();
                     levelvec = H->SolveMatrixScalapack(hID, max_energy);
                 }
                 else
@@ -710,9 +717,9 @@ LevelVector Atom::CalculateEnergies(pHamiltonianID hID)
         // Don't bother doing any checks if we've got pre-calculated g-factors stored
         if(get_gfactors)
         {
-            if(hID->GetTwoJ() == 0 || specification.ci_no_gfactors)
+            if(hID->GetTwoJ() == 0 || specification->ci_no_gfactors)
                 get_gfactors = false;
-            else if(specification.ci_gfactors)
+            else if(specification->ci_gfactors)
                 get_gfactors = true;
             else
             {   if(nrID || num_solutions > 50)
@@ -732,24 +739,24 @@ LevelVector Atom::CalculateEnergies(pHamiltonianID hID)
 
     // Set up output options
     bool ShowgFactors = true;
-    if(specification.ci_no_gfactors)
+    if(specification->ci_no_gfactors)
     {   ShowgFactors = false;
     }
 
     bool ShowPercentages = true;
-    if(specification.ci_output_no_configs || specification.ci_single_configuration_ci)
+    if(specification->ci_output_no_configs || specification->ci_single_configuration_ci)
     {   ShowPercentages = false;
     }
 
-    bool ShowRelConfigPercentages = specification.ci_output_print_relativistic_configurations;
+    bool ShowRelConfigPercentages = specification->ci_output_print_relativistic_configurations;
 
-    if(specification.ci_output_print_inline)
+    if(specification->ci_output_print_inline)
     {
-        std::string sep = specification.ci_output_separator.value_or(" ");
+        std::string sep = specification->ci_output_separator.value_or(" ");
 
-        if(specification.ci_output_max_displayed_energy)
+        if(specification->ci_output_max_displayed_energy)
         {   // Truncate display at max energy
-            double max_energy = specification.ci_output_max_displayed_energy.value();
+            double max_energy = specification->ci_output_max_displayed_energy.value();
             if(ShowRelConfigPercentages)
                 levelvec.PrintInline<RelativisticConfiguration>(max_energy, ShowPercentages, ShowgFactors, sep);
             else
@@ -765,11 +772,11 @@ LevelVector Atom::CalculateEnergies(pHamiltonianID hID)
     else
     {   double min_percent_displayed = 101.;
         if(ShowPercentages)
-            min_percent_displayed = specification.ci_output_min_displayed_percent.value_or(1.0);
+            min_percent_displayed = specification->ci_output_min_displayed_percent.value_or(1.0);
 
-        if(specification.ci_output_max_displayed_energy)
+        if(specification->ci_output_max_displayed_energy)
         {   // Truncate display at max energy
-            double DavidsonMaxEnergy = specification.ci_output_max_displayed_energy.value();
+            double DavidsonMaxEnergy = specification->ci_output_max_displayed_energy.value();
             if(ShowRelConfigPercentages)
                 levelvec.Print<RelativisticConfiguration>(min_percent_displayed, DavidsonMaxEnergy);
             else

@@ -10,14 +10,26 @@
 namespace Ambit
 {
 
+class GlobalSpecification {
 
-struct GlobalSpecification {
-    friend class parapara::specification<GlobalSpecification>;
-    // Lattice parameters.
-    //
-    // Default values of zero => unset by user configuration and should be replaced by default
-    // values that are dependent upon other settings.
-    
+public:
+    static GlobalSpecification* Instance();
+
+    /*
+    // On success, return empty string.
+    // On failure, return (long) error message.
+
+    std::string importSpecificationFile(const std::string& fileName);
+    std::string importSpecificationKV(const std::string& assignment);
+    */
+
+    // Perform global validation of specifications. Return non-empty error message on failure.
+    std::string validateAndNormaliseSpecification();
+
+protected:
+    GlobalSpecification();
+
+public: 
     // Ungrouped options
     std::string ID;
     unsigned Z = 0;
@@ -182,15 +194,15 @@ struct GlobalSpecification {
     bool _s13 = false;
     bool _s23 = false;
 };
-
 // On success, return empty string.
 // On failure, return (long) error message.
 
-std::string importSpecificationFile(GlobalSpecification&, const std::string& fileName);
-std::string importSpecificationKV(GlobalSpecification&, const std::string& assignment);
+std::string importSpecificationFile(GlobalSpecification* gs, const std::string& fileName);
+std::string importSpecificationKV(GlobalSpecification* gs, const std::string& assignment);
 
 // Perform global validation of specifications. Return non-empty error message on failure.
-std::string validateAndNormaliseSpecification(GlobalSpecification&);
+//std::string validateAndNormaliseSpecification(GlobalSpecification* gs);
+
 
 // Return a map-like interface to the configuration, which lets us do nice things like 
 // config_map["key"] = "value"

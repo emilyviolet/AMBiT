@@ -18,7 +18,7 @@ namespace Ambit
 class BasisGenerator
 {
 public:
-    BasisGenerator(pLattice lat, GlobalSpecification& specification, pPhysicalConstant physical_constant = nullptr);
+    BasisGenerator(pLattice lat, pPhysicalConstant physical_constant = nullptr);
     virtual ~BasisGenerator();
 
     /** Generate core orbitals. If open_shell_core is supplied, then use this as a starting approximation.
@@ -137,7 +137,6 @@ protected:
 
 protected:
 
-    GlobalSpecification specification;
     pPhysicalConstant physical_constant;
 
     pLattice lattice;
