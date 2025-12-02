@@ -13,6 +13,7 @@
 #include <fstream>
 #include <numeric>
 #include <memory>
+#include <optional>
 #include <gsl/gsl_math.h>
 
 #include "Atom/Debug.h"
