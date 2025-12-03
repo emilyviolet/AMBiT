@@ -1125,6 +1125,7 @@ inline reader<std::string_view> make_default_reader() {
         read_dsv<std::vector<float>>{},
         read_dsv<std::vector<double>>{},
         read_dsv<std::vector<long double>>{},
+        read_dsv<std::vector<std::string>>{},
         read_defaulted<short>{},
         read_defaulted<unsigned short>{},
         read_defaulted<int>{},

@@ -114,9 +114,19 @@ public:
     std::string ci_leading_rel_configurations;
     std::string ci_extra_configurations;
     std::string ci_extra_rel_configurations;
-    // TODO EVK: This is really annoying, because the spec says that it can be *either* an integer
-    // (e.g. CI/ElectronExcitations=2) or a string (e.g. ElectronExcitations = '1,5spdf,2,5spd')
-    // and this is really annoying to deal with
+
+    /* TODO EVK: This is really annoying, because the spec says that it can be *either* an integer
+     * (e.g. CI/ElectronExcitations=2) or a string (e.g. ElectronExcitations = '1,5spdf,2,5spd')
+     * and this is really annoying to deal with. My current approach of splitting it into two fields
+     * (one for the number of excitations, and one for the bounds) completely breaks backwards
+     * compatibility with the old style of user input parsing.
+     *
+     * The alternative would be to use a std::variant, which would rule because
+     * algebraic types rule, but std::variant's actual implementation in C++ is kind of yucky.
+     * Also, the existing "list" form of arguments ('1, 5spdf, 2, 5spd') also has multiple types
+     * within a single list (an integer followed by a string), which kind of inherently requires
+     * weird type wrangling to get it to work.
+    */
     unsigned ci_electron_excitations;
     std::optional<std::vector<std::string>> ci_excitation_bounds;
     unsigned ci_hole_excitations = 0;
