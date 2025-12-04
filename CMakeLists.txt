@@ -26,8 +26,10 @@ get_filename_component(Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
 # Set directory for angular data caching
 set(ANGULAR_DATA_DIR "${CMAKE_SOURCE_DIR}/AngularData" CACHE STRING "Directory to store angular data")
 add_definitions(-DANGULAR_DATA_DIRECTORY=${ANGULAR_DATA_DIR})
-
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
+
+# parapara submodule
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/Specification/parapara/include")
 add_subdirectory(src)
 
 ############# Unit tests ############# 

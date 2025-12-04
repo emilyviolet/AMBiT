@@ -1,0 +1,3 @@
+[submodule "src/Specification/parapara"]
+	path = src/Specification/parapara
+	url = https://github.com/halfflat/parapara.git
