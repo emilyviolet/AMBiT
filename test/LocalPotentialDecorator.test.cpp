@@ -29,11 +29,16 @@ TEST(LocalPotentialDecoratorTester, CoreHartree)
     "--hf-basis\n" +
     "ValenceBasis = 3s\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -41,7 +46,7 @@ TEST(LocalPotentialDecoratorTester, CoreHartree)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
 
@@ -70,11 +75,16 @@ TEST(LocalPotentialDecoratorTester, DiracHartree)
     "ValenceBasis = 3s\n" +
     "BSpline/Rmax = 40.0\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -82,7 +92,7 @@ TEST(LocalPotentialDecoratorTester, DiracHartree)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();
@@ -112,11 +122,16 @@ TEST(LocalPotentialDecoratorTester, KohnSham)
     "ValenceBasis = 4s\n" +
     "BSpline/Rmax = 40.0\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -124,7 +139,7 @@ TEST(LocalPotentialDecoratorTester, KohnSham)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();
@@ -154,11 +169,16 @@ TEST(LocalPotentialDecoratorTester, DiracSlater)
     "ValenceBasis = 6s\n" +
     "BSpline/Rmax = 40.0\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -166,7 +186,7 @@ TEST(LocalPotentialDecoratorTester, DiracSlater)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();

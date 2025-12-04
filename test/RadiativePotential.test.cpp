@@ -23,11 +23,16 @@ TEST(RadiativePotentialTester, Uehling)
         "--hf-basis\n" +
         "ValenceBasis = 3sp\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -35,7 +40,7 @@ TEST(RadiativePotentialTester, Uehling)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();
@@ -82,11 +87,16 @@ TEST(RadiativePotentialTester, UehlingCs)
         "--hf-basis\n" +
         "ValenceBasis = 6s\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -94,7 +104,7 @@ TEST(RadiativePotentialTester, UehlingCs)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();
@@ -147,20 +157,24 @@ TEST(RadiativePotentialTester, Magnetic)
         "--hf-basis\n" +
         "ValenceBasis = 6s\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
         exit(1);
     }
-
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
+        exit(1);
+    }
 
     std::stringstream user_input_stream(user_input_string);
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();
@@ -208,11 +222,16 @@ TEST(RadiativePotentialTester, ElectricSlow)
         "--hf-basis\n" +
         "ValenceBasis = 6s\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -220,7 +239,7 @@ TEST(RadiativePotentialTester, ElectricSlow)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();

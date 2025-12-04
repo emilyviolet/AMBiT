@@ -54,7 +54,7 @@ TEST(ConfigGeneratorTester, CountConfigurations)
       "ShowLifetime = 1\n" +
       "ShowProbability = 1\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
@@ -156,15 +156,22 @@ TEST(ConfigGeneratorTester, HolesVsElectrons)
     std::stringstream user_input_stream(user_input_string);
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
         exit(1);
     }
+
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
+        exit(1);
+    }
+
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     ConfigGenerator gen(orbitals, userInput);
@@ -196,16 +203,23 @@ TEST(ConfigGeneratorTester, HolesVsElectrons)
     std::stringstream holes_input_stream(holes_input_string);
     MultirunOptions holesInput(holes_input_stream, "//", "\n", ",");
 
-    GlobalSpecification holes_specification;
+    // Note: this will override the previsous specification, but we've already saved the values for
+    // comparison
+    //auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
-    perr = importSpecificationKV(holes_specification, holes_input_string);
+    perr = importSpecificationKV(specification, holes_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
         exit(1);
     }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
+        exit(1);
+    }
 
     // Get core and excited basis
-    BasisGenerator holes_basis_generator(lattice, holes_specification);
+    BasisGenerator holes_basis_generator(lattice);
     holes_basis_generator.GenerateHFCore();
     pOrbitalManagerConst holes_orbitals = holes_basis_generator.GenerateBasis();
     ConfigGenerator holes_gen(holes_orbitals, holesInput);
@@ -244,7 +258,7 @@ TEST(ConfigGeneratorTester, NonSquare)
         "ElectronExcitations = '1, 4spd'\n" +
         "HoleExcitations = '1, 2sp'\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
@@ -256,7 +270,7 @@ TEST(ConfigGeneratorTester, NonSquare)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     ConfigGenerator gen(orbitals, userInput);

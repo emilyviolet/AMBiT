@@ -9,7 +9,7 @@
 #include "Basis/BasisGenerator.h"
 #include "Universal/MathConstant.h"
 #include "MBPT/CoreMBPTCalculator.h"
-#include "Specification/parapara/parapara.h"
+#include "Specification/Specification.h"
 
 using namespace Ambit;
 
@@ -35,16 +35,20 @@ TEST(BruecknerDecoratorTester, MgIISlow)
         "[MBPT]\n" +
         "Basis = 10spdf\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
         exit(1);
     }
-
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
+        exit(1);
+    }
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     lattice->resize(core->LargestOrbitalSize());
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
@@ -61,7 +65,7 @@ TEST(BruecknerDecoratorTester, MgIISlow)
     // Calculate matrix element using core-valence MBPT
     pHFIntegrals one_body_integrals(new HFIntegrals(orbitals, hf));
     pSlaterIntegrals two_body_integrals(new SlaterIntegralsFlatHash(orbitals, hartreeY));
-    CoreMBPTCalculator mbpt(orbitals, one_body_integrals, two_body_integrals);
+    CoreMBPTCalculator mbpt(orbitals, one_body_integrals, two_body_integrals, specification->mbpt_energy_denom_orbitals);
     mbpt.UpdateIntegrals();
 
     pOrbitalConst bare_target = orbitals->excited->GetState(target);

@@ -32,11 +32,16 @@ TEST(EJOperatorTester, LiTransitions)
         "ValenceBasis = 2sp\n" +
         "BSpline/Rmax = 50.0\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -44,7 +49,7 @@ TEST(EJOperatorTester, LiTransitions)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();
@@ -116,19 +121,23 @@ TEST(EJOperatorTester, NaTransitions)
         "ValenceBasis = 3sp\n" +
         "BSpline/Rmax = 50.0\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
         exit(1);
     }
-
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
+        exit(1);
+    }
     std::stringstream user_input_stream(user_input_string);
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
 
@@ -199,11 +208,16 @@ TEST(MJOperatorTester, LiTransitions)
         "ValenceBasis = 2sp\n" +
         "BSpline/Rmax = 50.0\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -211,7 +225,7 @@ TEST(MJOperatorTester, LiTransitions)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
 
@@ -245,11 +259,16 @@ TEST(EJOperatorTester, HeTransitions)
         "LeadingConfigurations = '1s2'\n" +
         "ElectronExcitations = 2\n";//'1,20spd,2,5spd'\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -257,7 +276,7 @@ TEST(EJOperatorTester, HeTransitions)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();
@@ -384,11 +403,16 @@ TEST(MJOperatorTester, HolesVsElectrons)
             "LeadingConfigurations = '3d9'\n" +
             "ElectronExcitations = 1\n";
 
-        GlobalSpecification specification;
+        auto specification = GlobalSpecification::Instance();
         // Can parse the user_input_string directly via parapara
         std::string perr = importSpecificationKV(specification, user_input_string);
         if (!perr.empty()) {
             *errstream << "importSpecificationKV:\n" << perr << std::endl;
+            exit(1);
+        }
+        perr = specification->validateAndNormaliseSpecification();
+        if (!perr.empty()) {
+            *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
             exit(1);
         }
 
@@ -396,7 +420,7 @@ TEST(MJOperatorTester, HolesVsElectrons)
         MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
         // Get core and excited basis
-        BasisGenerator basis_generator(lattice, specification);
+        BasisGenerator basis_generator(lattice);
         basis_generator.GenerateHFCore();
         pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
         ConfigGenerator gen(orbitals, userInput);
@@ -454,11 +478,16 @@ TEST(MJOperatorTester, HolesVsElectrons)
             "ElectronExcitations = 1\n" +
             "HoleExcitations = 1\n";
 
-        GlobalSpecification specification;
+        auto specification = GlobalSpecification::Instance();
         // Can parse the user_input_string directly via parapara
         std::string perr = importSpecificationKV(specification, user_input_string);
         if (!perr.empty()) {
             *errstream << "importSpecificationKV:\n" << perr << std::endl;
+            exit(1);
+        }
+        perr = specification->validateAndNormaliseSpecification();
+        if (!perr.empty()) {
+            *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
             exit(1);
         }
 
@@ -466,7 +495,7 @@ TEST(MJOperatorTester, HolesVsElectrons)
         MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
         // Get core and excited basis
-        BasisGenerator basis_generator(lattice, specification);
+        BasisGenerator basis_generator(lattice);
         basis_generator.GenerateHFCore();
         pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
         ConfigGenerator gen(orbitals, userInput);
@@ -526,11 +555,16 @@ TEST(EJOperatorTester, Screening)
         "ValenceBasis = 3sp\n" +
         "BSpline/Rmax = 50.0\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -538,7 +572,7 @@ TEST(EJOperatorTester, Screening)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
 
@@ -574,11 +608,16 @@ TEST(EJOperatorTester, XeScreening)
         "ValenceBasis = 6sp\n" +
         "BSpline/Rmax = 50.0\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -587,7 +626,7 @@ TEST(EJOperatorTester, XeScreening)
 
     // Get core and excited basis
     DebugOptions.LogHFIterations(true);
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
 

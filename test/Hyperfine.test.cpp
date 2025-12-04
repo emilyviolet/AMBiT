@@ -31,11 +31,16 @@ TEST(HyperfineTester, Rb)
         "--hf-basis\n" +
         "ValenceBasis = 5s\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -43,7 +48,7 @@ TEST(HyperfineTester, Rb)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();
@@ -78,11 +83,16 @@ TEST(HyperfineTester, Na)
         "[MBPT]\n" +
         "Basis = 20spdf\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -90,7 +100,7 @@ TEST(HyperfineTester, Na)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();
@@ -134,7 +144,7 @@ TEST(HyperfineTester, Na)
 
     pHFIntegrals one_body_integrals(new HFIntegrals(orbitals, hf));
     pSlaterIntegrals two_body_integrals(new SlaterIntegralsFlatHash(orbitals, basis_generator.GetHartreeY()));
-    CoreMBPTCalculator mbpt(orbitals, one_body_integrals, two_body_integrals);
+    CoreMBPTCalculator mbpt(orbitals, one_body_integrals, two_body_integrals, specification->mbpt_energy_denom_orbitals);
     mbpt.UpdateIntegrals();
 
     *logstream << std::setprecision(10);
@@ -182,11 +192,16 @@ TEST(HyperfineTester, CsRPA)
         "--hf-basis\n" +
         "ValenceBasis = 6spd\n";
 
-    GlobalSpecification specification;
+    auto specification = GlobalSpecification::Instance();
     // Can parse the user_input_string directly via parapara
     std::string perr = importSpecificationKV(specification, user_input_string);
     if (!perr.empty()) {
         *errstream << "importSpecificationKV:\n" << perr << std::endl;
+        exit(1);
+    }
+    perr = specification->validateAndNormaliseSpecification();
+    if (!perr.empty()) {
+        *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
         exit(1);
     }
 
@@ -194,7 +209,7 @@ TEST(HyperfineTester, CsRPA)
     MultirunOptions userInput(user_input_stream, "//", "\n", ",");
 
     // Get core and excited basis
-    BasisGenerator basis_generator(lattice, specification);
+    BasisGenerator basis_generator(lattice);
     pCore core = basis_generator.GenerateHFCore();
     pOrbitalManagerConst orbitals = basis_generator.GenerateBasis();
     pPhysicalConstant constants = basis_generator.GetPhysicalConstant();

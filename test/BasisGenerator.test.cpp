@@ -56,15 +56,21 @@ protected:
         "ShowLifetime = 1\n" +
         "ShowProbability = 1\n";
 
-        specification = new GlobalSpecification;
+        auto specification = GlobalSpecification::Instance();
         // Can parse the user_input_string directly via parapara
-        std::string perr = importSpecificationKV(*specification, user_input_string);
+        std::string perr = importSpecificationKV(specification, user_input_string);
         if (!perr.empty()) {
             *errstream << "importSpecificationKV:\n" << perr << std::endl;
             exit(1);
         }
 
-        core_generator = new BasisGenerator(lattice, *specification);
+        perr = specification->validateAndNormaliseSpecification();
+        if (!perr.empty()) {
+            *errstream << "validateAndNormaliseSpecification:\n" << perr << std::endl;
+            exit(1);
+        }
+
+        core_generator = new BasisGenerator(lattice);
         core = core_generator->GenerateHFCore();
     }
 
@@ -74,21 +80,17 @@ protected:
     static void TearDownTestCase() {
         delete core_generator;
         core_generator = NULL;
-        delete specification;
-        specification = NULL;
     }
 
     // Some expensive resource shared by all tests.
     static pLattice lattice;
     static pCore core;
     static BasisGenerator* core_generator;
-    static GlobalSpecification* specification;
 };
 
 pLattice BasisGeneratorTester::lattice = pLattice();
 pCore BasisGeneratorTester::core = pCore();
 BasisGenerator* BasisGeneratorTester::core_generator = NULL;
-GlobalSpecification* BasisGeneratorTester::specification = NULL;
 
 TEST_F(BasisGeneratorTester, StartCore)
 {
@@ -124,6 +126,7 @@ TEST_F(BasisGeneratorTester, BSplineBasis)
 TEST_F(BasisGeneratorTester, HFBasis)
 {
     // Turn off BSplines and activate HF basis
+    auto specification = GlobalSpecification::Instance();
     specification->basis_bspline = false;
     specification->basis_hf = true;
 
