@@ -36,14 +36,14 @@ P::specification<GlobalSpecification> global_specifications[] = {
     // NOTE: Don't check "GlobalSpecification::s1" and friends in the main body of the code, use
     // "GlobalSpecification::mbpt_one_body" etc instead; it's much cleaner to figure out which
     // integrals to include once when normalising the spec
-    {"-m",                     &GlobalSpecification::m},
-    {"-s1",                     &GlobalSpecification::_s1},
-    {"-s2",                     &GlobalSpecification::_s2},
-    {"-s3",                     &GlobalSpecification::_s3},
+    {"-m",                       &GlobalSpecification::m},
+    {"-s1",                      &GlobalSpecification::_s1},
+    {"-s2",                      &GlobalSpecification::_s2},
+    {"-s3",                      &GlobalSpecification::_s3},
     {"-s12",                     &GlobalSpecification::_s12},
     {"-s13",                     &GlobalSpecification::_s13},
     {"-s23",                     &GlobalSpecification::_s23},
-    {"-s123",                     &GlobalSpecification::_s123},
+    {"-s123",                   &GlobalSpecification::_s123},
     {"--no-new-mbpt",           &GlobalSpecification::no_new_mbpt},
     {"--check-sizes",           &GlobalSpecification::check_sizes},
     {"-c",                      &GlobalSpecification::clean_run},
@@ -51,10 +51,10 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"--ci-complete",           &GlobalSpecification::ci_complete},
     {"--no-ci",                 &GlobalSpecification::no_ci},
     {"--configuration-average", &GlobalSpecification::configuration_average},
-    {"NuclearRadius",          &GlobalSpecification::nuclear_radius},
-    {"NuclearThickness",       &GlobalSpecification::nuclear_thickness},
-    {"NuclearInverseMass",     &GlobalSpecification::nuclear_inverse_mass},
-    {"AlphaSquaredVariation",     &GlobalSpecification::alpha_squared_variation},
+    {"NuclearRadius",           &GlobalSpecification::nuclear_radius},
+    {"NuclearThickness",        &GlobalSpecification::nuclear_thickness},
+    {"NuclearInverseMass",      &GlobalSpecification::nuclear_inverse_mass},
+    {"AlphaSquaredVariation",   &GlobalSpecification::alpha_squared_variation},
     // Lattice
     {"Lattice/NumPoints",           &GlobalSpecification::lattice_num_points,    P::nonzero()},
     {"Lattice/StartPoint",          &GlobalSpecification::lattice_start_point,   positive},
@@ -123,8 +123,9 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"CI/ExtraConfigurations",                  &GlobalSpecification::ci_extra_configurations},
     {"CI/ExtraRelativisticConfigurations",      &GlobalSpecification::ci_extra_rel_configurations},
     {"CI/ElectronExcitations",                  &GlobalSpecification::ci_electron_excitations},
-    {"CI/ExcitationBounds",                     &GlobalSpecification::ci_excitation_bounds},
+    {"CI/ElectronBounds",                       &GlobalSpecification::ci_electron_bounds},
     {"CI/HoleExcitations",                      &GlobalSpecification::ci_hole_excitations},
+    {"CI/HoleBounds",                           &GlobalSpecification::ci_hole_bounds},
     {"CI/EvenParityTwoJ",                       &GlobalSpecification::ci_even_parity_twoj},
     {"CI/OddParityTwoJ",                        &GlobalSpecification::ci_odd_parity_twoj},
     {"CI/NumSolutions",                         &GlobalSpecification::ci_num_solutions},
@@ -153,9 +154,10 @@ P::specification<GlobalSpecification> global_specifications[] = {
     {"CI/SmallSide/LeadingConfigurations",                &GlobalSpecification::ci_smallside_leading_configurations},
     {"CI/SmallSide/LeadingRelativisticConfigurations",    &GlobalSpecification::ci_smallside_leading_rel_configurations},
     {"CI/SmallSide/ElectronExcitations",                  &GlobalSpecification::ci_smallside_electron_excitations},
-    {"CI/SmallSide/ExcitationBounds",                     &GlobalSpecification::ci_smallside_excitation_bounds},
+    {"CI/SmallSide/ElectronBounds",                       &GlobalSpecification::ci_smallside_electron_bounds},
     {"CI/SmallSide/HoleExcitations",                      &GlobalSpecification::ci_smallside_hole_excitations},
 // MBPT
+    {"CI/SmallSide/HoleBounds",                           &GlobalSpecification::ci_smallside_hole_bounds},
     {"MBPT/Basis",                             &GlobalSpecification::mbpt_basis}, 
     {"MBPT/EnergyDenomOrbitals",               &GlobalSpecification::mbpt_energy_denom_orbitals}, 
     {"MBPT/--use-valence",                     &GlobalSpecification::mbpt_use_valence}, 
@@ -244,6 +246,39 @@ std::string GlobalSpecification::validateAndNormaliseSpecification() {
     // Can't request both CI/--gfactors and CI/--no-gfactors
     if (ci_gfactors && ci_no_gfactors)
         return "CI/--gfactors and CI/--no-gfactors cannot both be set at the same time";
+
+    // The number of electron/hole excitation bounds must be equal to the number of
+    // electron/hole excitations
+    if(ci_electron_bounds)
+    {
+        if(ci_electron_bounds.value().size() != ci_electron_excitations)
+        {
+            return "Incorrect number of arguments to CI/ElectronBounds";
+        }
+    }
+    if(ci_hole_bounds)
+    {
+        if(ci_hole_bounds.value().size() != ci_hole_excitations)
+        {
+            return "Incorrect number of arguments to CI/HoleBounds";
+        }
+    }
+
+    // Same for SmallSide
+    if(ci_smallside_electron_bounds)
+    {
+        if(ci_smallside_electron_bounds.value().size() != ci_smallside_electron_excitations)
+        {
+            return "Incorrect number of arguments to CI/SmallSide/ElectronBounds";
+        }
+    }    
+    if(ci_smallside_hole_bounds)
+    {
+        if(ci_smallside_hole_bounds.value().size() != ci_smallside_hole_excitations)
+        {
+            return "Incorrect number of arguments to CI/SmallSide/HoleBounds";
+        }
+    }
 
     // Oll Korrect
     return "";

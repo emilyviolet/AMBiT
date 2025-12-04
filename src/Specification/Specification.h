@@ -128,7 +128,8 @@ public:
      * weird type wrangling to get it to work.
     */
     unsigned ci_electron_excitations;
-    std::optional<std::vector<std::string>> ci_excitation_bounds;
+    std::optional<std::vector<std::string>> ci_electron_bounds;
+    std::optional<std::vector<std::string>> ci_hole_bounds;
     unsigned ci_hole_excitations = 0;
     std::vector<unsigned> ci_even_parity_twoj;
     std::vector<unsigned> ci_odd_parity_twoj;
@@ -159,7 +160,8 @@ public:
     std::string ci_smallside_leading_configurations;
     std::string ci_smallside_leading_rel_configurations;
     unsigned ci_smallside_electron_excitations;
-    std::optional<std::vector<std::string>> ci_smallside_excitation_bounds;
+    std::optional<std::vector<std::string>> ci_smallside_electron_bounds;
+    std::optional<std::vector<std::string>> ci_smallside_hole_bounds;
     unsigned ci_smallside_hole_excitations = 0;
     bool ci_smallside_print_configurations = false;
     bool ci_smallside_print_rel_configurations = false;
