@@ -11,6 +11,11 @@
 #ifdef AMBIT_USE_MPI
     #include <mpi.h>
 #endif
+#ifdef AMBIT_USE_GPU
+    #include <hip/hip_runtime.h>
+    #include <rocsolver.h>
+    #include <rocblas.h>
+#endif
 
 namespace Ambit
 {
@@ -236,10 +241,70 @@ int AngularData::GenerateCSFs(const RelativisticConfiguration& config, int two_j
     }
 
     // Solve the matrix
+#ifdef AMBIT_USE_GPU
+    // Allocate space on the device
+    double* d_M; // GPU copy of the eigenvalue matrix
+    double* d_V; // Device memory to hold the eigenvalues we get from rocSolver
+    double* d_E; // Device memory for any unconverged eigenvalues
+
+    hipMalloc(&d_M, N*N*sizeof(double));
+    hipMalloc(&d_E, N*sizeof(double));
+    hipMalloc(&d_V, N*sizeof(double));
+
+    // Now copy the projections matrix to the GPU
+    // Note that since the default storage order in Eigen is column-major, the matrices will 
+    // already be in the form expected by rocBLAS, so we can just copy them straight to/from
+    // the GPU
+    hipMemcpy(d_M, M.data(), N*N*sizeof(double), hipMemcpyHostToDevice);
+
+    // Host memory for the results from rocBLAS
+    Eigen::VectorXd V(N); // Host memory to hold the eigenvalues once we copy from the device
+    Eigen::MatrixXd eigenvectors(N, N); // Host memory to hold the eigenvectors once we copy from
+                                  // the device
+    
+    // Boilerplate rocBLAS/rocSolver stuff
+    // TODO: Move this outside the function so it can be reused between CSFs
+    rocblas_handle handle; // rocblas instance handle
+    rocblas_create_handle(&handle);
+
+    int* d_info; // Information on the status of the various rocSolver routines
+    hipMalloc(&d_info, sizeof(int));
+
+    // rocBLAS and rocSolver support automatic management of on-device working memory
+    // for their subroutines. This is really convenient, so lets turn it on by passing
+    // nullptr for the workspace parameters
+    rocblas_set_workspace(handle, nullptr, 0);
+
+
+    // Now actually call the eigenvalue solver on the device
+    *outstream << "Solving CSF: N = " << pAng->projection_size() 
+               << " " << rconfig << " on GPU..." << std::endl;
+    auto status = rocsolver_dsyevd(handle, rocblas_evect_original, rocblas_fill_lower,
+                                   N, d_M, N, d_V, d_E, d_info);
+    if(status != rocblas_status_success)
+    {
+        // Bail out if the solver failed for some reason
+        *errstream << "rocSolver eigenvalue solver in AngularData::GenerateCSFs() failed with exit code "
+                   << status << std::endl;
+        exit(status);
+    }
+
+    // Now copy the results back to the CPU (host)
+    hipMemcpy(eigenvectors.data(), d_M, N*N*sizeof(double), hipMemcpyDeviceToHost);
+    hipMemcpy(V.data(), d_V, N*N*sizeof(double), hipMemcpyDeviceToHost);
+
+    // TODO: Should probably do something with d_E in case the solver doesn't converge
+
+    // Finally, free the device memory
+    hipFree(d_M);
+    hipFree(d_V);
+    hipFree(d_E);
+
+#else
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(M);
     const Eigen::MatrixXd& eigenvectors = es.eigenvectors();
     const Eigen::VectorXd& V = es.eigenvalues();
-
+#endif
     // Count number of good eigenvalues
     double JSquared = double(two_j * (two_j + 2.)) / 4.;
     num_CSFs = 0;

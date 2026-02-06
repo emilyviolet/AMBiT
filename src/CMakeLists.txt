@@ -17,6 +17,10 @@ find_package(absl CONFIG REQUIRED)
 target_link_libraries(ambit PRIVATE absl::strings)
 target_link_libraries(ambit PRIVATE absl::str_format)
 
+# Use GPU-accelerated libraries?
+set(USE_GPU OFF CACHE BOOL "Use GPU-accelerated subroutines")
+
+
 # LAPACK and BLAS
 # First, check to see if we need to use MKL or OpenBLAS. Can't use both at once, so error out if
 # both are set.
@@ -74,6 +78,17 @@ else() # Use vanilla BLAS/LAPACK
         find_package(scalapack REQUIRED)
         target_link_libraries(ambit PRIVATE scalapack)
     endif()
+
+endif()
+
+# GPU options
+if(USE_GPU)
+    find_package(rocblas    REQUIRED)
+    find_package(rocsolver  REQUIRED)
+    target_link_libraries(ambit PRIVATE rocblas)
+    target_link_libraries(ambit PRIVATE rocsolver)
+
+    target_compile_definitions(ambit PRIVATE -DAMBIT_USE_GPU)
 
 endif()
 
