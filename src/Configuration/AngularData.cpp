@@ -12,9 +12,11 @@
     #include <mpi.h>
 #endif
 #ifdef AMBIT_USE_GPU
+#ifdef AMBIT_USE_HIP
     #include <hip/hip_runtime.h>
     #include <rocsolver.h>
     #include <rocblas.h>
+#endif
 #endif
 
 namespace Ambit
@@ -240,8 +242,10 @@ int AngularData::GenerateCSFs(const RelativisticConfiguration& config, int two_j
         //i_it++; i++;
     }
 
-    // Solve the matrix
+    // Solve the matrix, depending on whether we're using CPU or GPU
 #ifdef AMBIT_USE_GPU
+// HIP path
+#if defined AMBIT_GPU_HIP
     // Allocate space on the device
     double* d_M; // GPU copy of the eigenvalue matrix
     double* d_V; // Device memory to hold the eigenvalues we get from rocSolver
@@ -262,19 +266,9 @@ int AngularData::GenerateCSFs(const RelativisticConfiguration& config, int two_j
     Eigen::MatrixXd eigenvectors(N, N); // Host memory to hold the eigenvectors once we copy from
                                   // the device
     
-    // Boilerplate rocBLAS/rocSolver stuff
-    // TODO: Move this outside the function so it can be reused between CSFs
-    rocblas_handle handle; // rocblas instance handle
-    rocblas_create_handle(&handle);
-
+    // rocBLAS boilerplate stuff
     int* d_info; // Information on the status of the various rocSolver routines
     hipMalloc(&d_info, sizeof(int));
-
-    // rocBLAS and rocSolver support automatic management of on-device working memory
-    // for their subroutines. This is really convenient, so lets turn it on by passing
-    // nullptr for the workspace parameters
-    rocblas_set_workspace(handle, nullptr, 0);
-
 
     // Now actually call the eigenvalue solver on the device
     *outstream << "Solving CSF: N = " << pAng->projection_size() 
@@ -299,12 +293,70 @@ int AngularData::GenerateCSFs(const RelativisticConfiguration& config, int two_j
     hipFree(d_M);
     hipFree(d_V);
     hipFree(d_E);
+#elif defined AMBIT_GPU_CUDA
+    // Allocate space on the device
+    double* d_M; // GPU copy of the eigenvalue matrix
+    double* d_V; // Device memory to hold the eigenvalues we get from rocSolver
 
+    cudaMalloc(&d_M, N*N*sizeof(double));
+    cudaMalloc(&d_V, N*sizeof(double));
+
+    // Now copy the projections matrix to the GPU
+    // Note that since the default storage order in Eigen is column-major, the matrices are
+    // already in the form expected by cuBLAS, so we can just copy them straight to/from
+    // the GPU
+    cudaMemcpy(d_M, M.data(), N*N*sizeof(double), cudaMemcpyHostToDevice);
+
+    // Host memory for the results from cusolver
+    Eigen::VectorXd V(N); // Host memory to hold the eigenvalues once we copy from the 
+                          // device
+    Eigen::MatrixXd eigenvectors(N, N); // Host memory to hold the eigenvectors once we
+                                        // copy from the device
+    
+    // CUDA boilerplate stuff
+    int* d_info; // Information on the status of the various cuSolver routines
+    cudaMalloc(&d_info, sizeof(int));
+    // compute eigenvalues and eigenvectors.
+    cusolverEigMode_t jobz = CUSOLVER_EIG_MODE_VECTOR;
+    // Only bother with the lower half of the matrix
+    cublasFillMode_t uplo = CUBLAS_FILL_MODE_LOWER;
+
+    // Unlike ROCm, cuSolver doesn't automatically manage workspace memory, so we have to
+    // do it ourselves
+    int workspace_size = 0;
+    double *d_work;
+    cusolverDnDsyevd_bufferSize(handle, jobz, uplo, m, d_A, lda, d_W, &workspace_size);
+    cudaMalloc(reinterpret_cast<void **>(&d_work), sizeof(double) * workspace_size);
+
+    // Now actually call the eigenvalue solver on the device
+    *outstream << "Solving CSF: N = " << pAng->projection_size() 
+               << " " << rconfig << " on GPU..." << std::endl;
+    auto status =  cusolverDnDsyevd(handle, jobz, uplo, N, d_M, N, d_V, d_work, workspace_size, d_info);
+    if(status != CUSOLVER_STATUS_SUCCESS)
+    {
+        // Bail out if the solver failed for some reason
+        *errstream << "cuSolver eigenvalue solver in AngularData::GenerateCSFs() failed with exit code "
+                   << status << std::endl;
+        exit(status);
+    }
+
+    // Now copy the results back to the CPU (host)
+    cudaMemcpy(eigenvectors.data(), d_M, N*N*sizeof(double), cudaMemcpyDeviceToHost);
+    cudaMemcpy(V.data(), d_V, N*N*sizeof(double), cudaMemcpyDeviceToHost);
+
+    // Finally, free the device memory
+    cudaFree(d_M);
+    cudaFree(d_V);
+
+#endif
+
+// Otherwise run on the CPU
 #else
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(M);
     const Eigen::MatrixXd& eigenvectors = es.eigenvectors();
     const Eigen::VectorXd& V = es.eigenvalues();
 #endif
+    // Eigenvalues calculated. Now do some validation
     // Count number of good eigenvalues
     double JSquared = double(two_j * (two_j + 2.)) / 4.;
     num_CSFs = 0;
