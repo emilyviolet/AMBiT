@@ -19,10 +19,7 @@ target_link_libraries(ambit PRIVATE absl::str_format)
 
 # Use GPU-accelerated libraries?
 set(USE_GPU OFF CACHE BOOL "Use GPU-accelerated subroutines")
-set(GPU_BACKEND CACHE STRING "Backend API to use for GPU-offloading. Can be CUDA or HIP")
-set(GPU_BACKEND_VALUES "HIP" "CUDA")
-set_property(CACHE GPU_BACKEND PROPERTY STRINGS ${GPU_BACKEND_VALUES})
-string(TOUPPER ${GPU_BACKEND_VALUES} GPU_BACKEND_VALUES)
+
 
 # LAPACK and BLAS
 # First, check to see if we need to use MKL or OpenBLAS. Can't use both at once, so error out if
@@ -86,38 +83,11 @@ endif()
 
 # GPU options
 if(USE_GPU)
-    # Choose linking based on whether we're using HIP or CUDA for linear algebra on the
-    # GPU
-    if(GPU_BACKEND STREQUAL "HIP")
-        # AMD libraries
-        find_package(rocblas    REQUIRED)
-        find_package(rocsolver  REQUIRED)
-        target_link_libraries(ambit PRIVATE rocblas)
-        target_link_libraries(ambit PRIVATE rocsolver)
+    find_package(rocblas    REQUIRED)
+    find_package(rocsolver  REQUIRED)
+    target_link_libraries(ambit PRIVATE rocblas)
+    target_link_libraries(ambit PRIVATE rocsolver)
 
-        # Set the internal AMBiT preprocessor definition to keep track of which GPU
-        # backend we're using (has to be a boolean because of the preprocessor)
-        target_compile_definitions(ambit PRIVATE -DAMBIT_GPU_HIP)
-
-    elseif(GPU_BACKEND STREQUAL "CUDA")
-        # NVIDIA libraries
-        find_package(cublas    REQUIRED)
-        find_package(cusolver  REQUIRED)
-        target_link_libraries(ambit PRIVATE cublas)
-        target_link_libraries(ambit PRIVATE cusolver)
-
-        # Set the internal AMBiT preprocessor definition to keep track of which GPU
-        # backend we're using (has to be a boolean because of the preprocessor)
-        target_compile_definitions(ambit PRIVATE -DAMBIT_GPU_CUDA)
-        
-        message(FATAL_ERROR "CUDA GPU backend not yet implemented")
-
-    else()
-        # Bail out if passed an unsupported GPU backend
-        message(FATAL_ERROR "Unsupported GPU backend ${GPU_BACKEND}")
-    endif()
-
-    # Internal AMBIT preprocessor definition to activate GPU compilation paths
     target_compile_definitions(ambit PRIVATE -DAMBIT_USE_GPU)
 
 endif()

@@ -11,19 +11,6 @@
 #include <boost/iterator/iterator_facade.hpp>
 #include <filesystem>
 
-#ifdef AMBIT_USE_GPU
-#if defined AMBIT_GPU_HIP
-    #include <hip/hip_runtime.h>
-    #include <rocsolver.h>
-    #include <rocblas.h>
-
-#elif defined AMBIT_GPU_CUDA
-    #include <cuda_runtime.h>
-    #include <cusolverDn.h>
-
-#endif
-#endif
-
 namespace Ambit
 {
 class RelativisticConfiguration;
@@ -140,55 +127,6 @@ protected:
             return 0.;
         }
     } J_squared_operator;
-#ifdef AMBIT_USE_GPU
-    // GPU stuff
-#if defined AMBIT_GPU_HIP
-protected:
-    // Handle for a rocBLAS instance
-    rocblas_handle handle; // rocblas instance handle
-protected:
-    // Helper functions to initialise GPU BLAS stuff
-    void init_GPU()
-    {
-        // Create this AngularData's rocblas instance handle and workspace
-        rocblas_create_handle(&handle);
-
-        // rocBLAS and rocSolver support automatic management of on-device working memory
-        // for their subroutines. This is really convenient, so lets turn it on by passing
-        // nullptr for the workspace parameters
-        rocblas_set_workspace(handle, nullptr, 0);
-    }
-
-    // Clean up the device workspace and handle
-    void cleanup_GPU()
-    {
-        rocblas_destroy_handle(handle);
-    }
-    
-#elif defined AMBIT_GPU_CUDA
-protected:
-    cusolverDnHandle_t handle;
-    cudaStream_t stream;
-
-protected:
-    // Helper functions to initialise GPU BLAS stuff
-    void init_GPU()
-    {
-        // Create this AngularData's cusolver instance handle and stream
-        cusolverDnCreate(&handle);
-        cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
-        cusolverDnSetStream(handle, stream);
-    }
-
-    // Clean up the device workspace and handle
-    void cleanup_GPU()
-    {
-        cusolverDnDestroy(handle);
-        cudaStreamDestroy(stream);
-    }
-
-#endif
-#endif
 };
 
 typedef std::shared_ptr<AngularData> pAngularData;
